@@ -6,7 +6,7 @@ This folder contains all documentation for the Kaggle CMI Gesture Recognition pr
 
 ## Documents (in order of creation)
 
-### [01_EDA_DOCUMENTATION.md](01_EDA_DOCUMENTATION.md)
+### [01_EDA_DOCUMENTATION.md](docs/01_EDA_DOCUMENTATION.md)
 **Exploratory Data Analysis**
 
 Comprehensive analysis of all sensor types:
@@ -22,7 +22,7 @@ Comprehensive analysis of all sensor types:
 
 ---
 
-### [02_CRITICAL_NOTES.md](02_CRITICAL_NOTES.md)
+### [02_CRITICAL_NOTES.md](docs/02_CRITICAL_NOTES.md)
 **Critical Insights & Corrections**
 
 Important discoveries made during the project:
@@ -33,7 +33,7 @@ Important discoveries made during the project:
 
 ---
 
-### [03_COMPETITION_SUMMARY.md](03_COMPETITION_SUMMARY.md)
+### [03_COMPETITION_SUMMARY.md](docs/03_COMPETITION_SUMMARY.md)
 **Competition Overview**
 
 Details about the Kaggle competition:
@@ -44,7 +44,7 @@ Details about the Kaggle competition:
 
 ---
 
-### [04_PROGRESS_SUMMARY.md](04_PROGRESS_SUMMARY.md)
+### [04_PROGRESS_SUMMARY.md](docs/04_PROGRESS_SUMMARY.md)
 **Mid-Project Progress Report**
 
 Status update after completing EDA and feature engineering:
@@ -55,7 +55,7 @@ Status update after completing EDA and feature engineering:
 
 ---
 
-### [05_FEATURE_IMPORTANCE_ANALYSIS.md](05_FEATURE_IMPORTANCE_ANALYSIS.md)
+### [05_FEATURE_IMPORTANCE_ANALYSIS.md](docs/05_FEATURE_IMPORTANCE_ANALYSIS.md)
 **XGBoost Feature Importance**
 
 Analysis of which features drive predictions:
@@ -68,7 +68,7 @@ Analysis of which features drive predictions:
 
 ---
 
-### [06_PROJECT_SUMMARY.md](06_PROJECT_SUMMARY.md)
+### [06_PROJECT_SUMMARY.md](docs/06_PROJECT_SUMMARY.md)
 **Complete Project Summary**
 
 Comprehensive overview of the entire project:
@@ -174,14 +174,14 @@ project/
 
 ## Quick Navigation
 
-**Start Here**: [06_PROJECT_SUMMARY.md](06_PROJECT_SUMMARY.md) - Full project overview
+**Start Here**: [06_PROJECT_SUMMARY.md](docs/06_PROJECT_SUMMARY.md) - Full project overview
 
 **Technical Deep Dives**:
-- Sensor Analysis → [01_EDA_DOCUMENTATION.md](01_EDA_DOCUMENTATION.md)
-- Feature Engineering → [04_PROGRESS_SUMMARY.md](04_PROGRESS_SUMMARY.md)
-- Model Performance → [05_FEATURE_IMPORTANCE_ANALYSIS.md](05_FEATURE_IMPORTANCE_ANALYSIS.md)
+- Sensor Analysis → [01_EDA_DOCUMENTATION.md](docs/01_EDA_DOCUMENTATION.md)
+- Feature Engineering → [04_PROGRESS_SUMMARY.md](docs/04_PROGRESS_SUMMARY.md)
+- Model Performance → [05_FEATURE_IMPORTANCE_ANALYSIS.md](docs/05_FEATURE_IMPORTANCE_ANALYSIS.md)
 
-**Critical Constraints**: [02_CRITICAL_NOTES.md](02_CRITICAL_NOTES.md) - Must-read for understanding test set challenge
+**Critical Constraints**: [02_CRITICAL_NOTES.md](docs/02_CRITICAL_NOTES.md) - Must-read for understanding test set challenge
 
 ---
 
