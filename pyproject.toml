@@ -1,9 +1,15 @@
-[dependency-groups]
-dev = [
+[project]
+name="sadna"
+version="1.0"
+dependencies = [
     "jupyter>=1.1.1",
     "kagglehub>=0.3.13",
     "numpy>=2.4.0",
     "pandas>=2.3.3",
     "plotly>=6.5.1",
     "seaborn>=0.13.2",
+    "matplotlib>=3.10.8",
+    "seaborn>=0.13.2",
+    "scikit-learn>=1.8.0",
+    "xgboost>=3.1.3",
 ]
