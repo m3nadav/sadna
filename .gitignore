@@ -2,4 +2,6 @@
 .kaggle
 .vscode/
 data/
-deep_learning_models.ipynb
+__pycache__
+XDMyo_Data/
+.venv/
