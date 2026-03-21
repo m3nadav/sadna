@@ -1,0 +1,6 @@
+.env
+.kaggle
+.vscode/
+data/
+deep_learning_models.ipynb
+my_env/
