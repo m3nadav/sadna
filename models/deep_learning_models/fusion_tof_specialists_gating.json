@@ -1,0 +1,168 @@
+{
+  "backbone_checkpoint": "models/deep_learning_models/Fusion_ToF_Multistream_CNN_finetune.pth",
+  "fusion_pretrained": "models/deep_learning_models/Fusion_Multistream_CNN.pth",
+  "tof_pretrained": "models/deep_learning_models/ToF_CNN.pth",
+  "feat_dim": 256,
+  "class_names": [
+    "Above ear - pull hair",
+    "Cheek - pinch skin",
+    "Drink from bottle/cup",
+    "Eyebrow - pull hair",
+    "Eyelash - pull hair",
+    "Feel around in tray and pull out an object",
+    "Forehead - pull hairline",
+    "Forehead - scratch",
+    "Glasses on/off",
+    "Neck - pinch skin",
+    "Neck - scratch",
+    "Pinch knee/leg skin",
+    "Pull air toward your face",
+    "Scratch knee/leg skin",
+    "Text on phone",
+    "Wave hello",
+    "Write name in air",
+    "Write name on leg"
+  ],
+  "gesture_map": {
+    "Above ear - pull hair": 0,
+    "Cheek - pinch skin": 1,
+    "Drink from bottle/cup": 2,
+    "Eyebrow - pull hair": 3,
+    "Eyelash - pull hair": 4,
+    "Feel around in tray and pull out an object": 5,
+    "Forehead - pull hairline": 6,
+    "Forehead - scratch": 7,
+    "Glasses on/off": 8,
+    "Neck - pinch skin": 9,
+    "Neck - scratch": 10,
+    "Pinch knee/leg skin": 11,
+    "Pull air toward your face": 12,
+    "Scratch knee/leg skin": 13,
+    "Text on phone": 14,
+    "Wave hello": 15,
+    "Write name in air": 16,
+    "Write name on leg": 17
+  },
+  "gating_rule": "Let p1>=p2 be the two largest main-model softmax probabilities and c1,c2 the corresponding class indices. If (p1-p2) < tau_B AND {c1,c2} \u2286 B.class_indices, run specialist MLP on frozen fused_features (256-d) and replace prediction with local_to_global[argmax(specialist_logits)]. Otherwise keep main argmax. Field top_k is the smallest k in [2,5] on validation such that P(true \u2208 top-k | y in block) >= recall_target; use it to audit coverage or for extended gating (e.g. require true \u2208 top-k before override).",
+  "recall_target_for_k": 0.92,
+  "blocks": [
+    {
+      "name": "neck_scratch_pinch",
+      "gestures": [
+        "Neck - pinch skin",
+        "Neck - scratch"
+      ],
+      "class_indices": [
+        9,
+        10
+      ],
+      "local_to_global": [
+        9,
+        10
+      ],
+      "top_k": 4,
+      "recall_true_in_topk_given_y_in_block_val": 0.9619565217391305,
+      "margin_threshold_tau": 0.6538246646523476,
+      "margin_threshold_meta": {
+        "n_val": 1170,
+        "n_within_block_errors": 58,
+        "tau_source": "within_block_errors_p75",
+        "tau": 0.6538246646523476
+      },
+      "checkpoint": "models/deep_learning_models/fusion_tof_specialist_neck_scratch_pinch.pth"
+    },
+    {
+      "name": "upper_face_bfrb",
+      "gestures": [
+        "Above ear - pull hair",
+        "Cheek - pinch skin",
+        "Eyebrow - pull hair",
+        "Eyelash - pull hair",
+        "Forehead - pull hairline",
+        "Forehead - scratch"
+      ],
+      "class_indices": [
+        0,
+        1,
+        3,
+        4,
+        6,
+        7
+      ],
+      "local_to_global": [
+        0,
+        1,
+        3,
+        4,
+        6,
+        7
+      ],
+      "top_k": 5,
+      "recall_true_in_topk_given_y_in_block_val": 0.9358974358974359,
+      "margin_threshold_tau": 0.7041226625442505,
+      "margin_threshold_meta": {
+        "n_val": 1170,
+        "n_within_block_errors": 190,
+        "tau_source": "within_block_errors_p75",
+        "tau": 0.7041226625442505
+      },
+      "checkpoint": "models/deep_learning_models/fusion_tof_specialist_upper_face_bfrb.pth"
+    },
+    {
+      "name": "leg_skin_write_leg",
+      "gestures": [
+        "Pinch knee/leg skin",
+        "Scratch knee/leg skin",
+        "Write name on leg"
+      ],
+      "class_indices": [
+        11,
+        13,
+        17
+      ],
+      "local_to_global": [
+        11,
+        13,
+        17
+      ],
+      "top_k": 3,
+      "recall_true_in_topk_given_y_in_block_val": 0.9444444444444444,
+      "margin_threshold_tau": 0.44287657365202904,
+      "margin_threshold_meta": {
+        "n_val": 1170,
+        "n_within_block_errors": 34,
+        "tau_source": "within_block_errors_p75",
+        "tau": 0.44287657365202904
+      },
+      "checkpoint": "models/deep_learning_models/fusion_tof_specialist_leg_skin_write_leg.pth"
+    },
+    {
+      "name": "air_arm_motion",
+      "gestures": [
+        "Pull air toward your face",
+        "Wave hello",
+        "Write name in air"
+      ],
+      "class_indices": [
+        12,
+        15,
+        16
+      ],
+      "local_to_global": [
+        12,
+        15,
+        16
+      ],
+      "top_k": 3,
+      "recall_true_in_topk_given_y_in_block_val": 0.9313725490196079,
+      "margin_threshold_tau": 0.9775142008438706,
+      "margin_threshold_meta": {
+        "n_val": 1170,
+        "n_within_block_errors": 47,
+        "tau_source": "within_block_errors_p75",
+        "tau": 0.9775142008438706
+      },
+      "checkpoint": "models/deep_learning_models/fusion_tof_specialist_air_arm_motion.pth"
+    }
+  ]
+}

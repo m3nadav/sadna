@@ -1,0 +1,27 @@
+Test Set Performance Analysis (Multistream CNN rot-only)
+============================================================
+
+                                            precision    recall  f1-score   support
+
+                     Above ear - pull hair       0.41      0.41      0.41        96
+                        Cheek - pinch skin       0.24      0.23      0.23        96
+                     Drink from bottle/cup       0.58      0.75      0.65        24
+                       Eyebrow - pull hair       0.19      0.14      0.16        96
+                       Eyelash - pull hair       0.18      0.24      0.21        96
+Feel around in tray and pull out an object       0.47      0.83      0.60        24
+                  Forehead - pull hairline       0.18      0.19      0.18        96
+                        Forehead - scratch       0.35      0.47      0.40        96
+                            Glasses on/off       0.88      0.62      0.73        24
+                         Neck - pinch skin       0.21      0.19      0.20        96
+                            Neck - scratch       0.27      0.20      0.23        96
+                       Pinch knee/leg skin       0.38      0.38      0.38        24
+                 Pull air toward your face       0.72      0.69      0.70        70
+                     Scratch knee/leg skin       0.28      0.29      0.29        24
+                             Text on phone       0.72      0.75      0.73        96
+                                Wave hello       0.56      0.41      0.47        71
+                         Write name in air       0.51      0.51      0.51        70
+                         Write name on leg       0.30      0.29      0.30        24
+
+                                  accuracy                           0.38      1219
+                                 macro avg       0.41      0.42      0.41      1219
+                              weighted avg       0.38      0.38      0.37      1219

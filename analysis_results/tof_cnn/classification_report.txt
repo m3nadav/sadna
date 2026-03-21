@@ -1,0 +1,27 @@
+Test Set Performance Analysis (ToF CNN)
+============================================================
+
+                                            precision    recall  f1-score   support
+
+                     Above ear - pull hair       0.66      0.68      0.67        96
+                        Cheek - pinch skin       0.39      0.45      0.42        96
+                     Drink from bottle/cup       0.56      0.38      0.45        24
+                       Eyebrow - pull hair       0.34      0.20      0.25        96
+                       Eyelash - pull hair       0.31      0.39      0.35        96
+Feel around in tray and pull out an object       0.89      0.71      0.79        24
+                  Forehead - pull hairline       0.55      0.38      0.44        96
+                        Forehead - scratch       0.42      0.71      0.53        96
+                            Glasses on/off       0.54      0.54      0.54        24
+                         Neck - pinch skin       0.54      0.34      0.42        96
+                            Neck - scratch       0.39      0.59      0.47        96
+                       Pinch knee/leg skin       0.00      0.00      0.00        24
+                 Pull air toward your face       0.33      0.79      0.47        70
+                     Scratch knee/leg skin       0.28      0.54      0.37        24
+                             Text on phone       0.80      0.57      0.67        96
+                                Wave hello       0.47      0.13      0.20        71
+                         Write name in air       0.42      0.16      0.23        70
+                         Write name on leg       0.31      0.21      0.25        24
+
+                                  accuracy                           0.45      1219
+                                 macro avg       0.46      0.43      0.42      1219
+                              weighted avg       0.47      0.45      0.43      1219

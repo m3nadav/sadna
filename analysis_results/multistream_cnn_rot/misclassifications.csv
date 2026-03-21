@@ -1,0 +1,162 @@
+True_Gesture,Predicted_Gesture,Count
+Forehead - pull hairline,Forehead - scratch,34
+Neck - pinch skin,Above ear - pull hair,22
+Above ear - pull hair,Neck - pinch skin,21
+Wave hello,Write name in air,21
+Eyebrow - pull hair,Eyelash - pull hair,20
+Forehead - scratch,Forehead - pull hairline,20
+Cheek - pinch skin,Eyelash - pull hair,19
+Eyebrow - pull hair,Cheek - pinch skin,16
+Eyebrow - pull hair,Forehead - scratch,16
+Neck - pinch skin,Eyelash - pull hair,16
+Neck - scratch,Neck - pinch skin,16
+Eyelash - pull hair,Cheek - pinch skin,14
+Above ear - pull hair,Eyelash - pull hair,13
+Neck - pinch skin,Neck - scratch,13
+Eyebrow - pull hair,Forehead - pull hairline,12
+Eyelash - pull hair,Forehead - pull hairline,12
+Cheek - pinch skin,Forehead - pull hairline,11
+Eyelash - pull hair,Eyebrow - pull hair,11
+Eyelash - pull hair,Neck - pinch skin,11
+Forehead - pull hairline,Eyebrow - pull hair,10
+Neck - scratch,Cheek - pinch skin,10
+Neck - scratch,Forehead - pull hairline,10
+Forehead - pull hairline,Eyelash - pull hair,9
+Forehead - scratch,Eyebrow - pull hair,9
+Neck - scratch,Above ear - pull hair,9
+Neck - scratch,Eyelash - pull hair,9
+Neck - scratch,Forehead - scratch,9
+Cheek - pinch skin,Eyebrow - pull hair,8
+Cheek - pinch skin,Neck - pinch skin,8
+Forehead - pull hairline,Cheek - pinch skin,8
+Forehead - pull hairline,Neck - scratch,8
+Cheek - pinch skin,Forehead - scratch,7
+Eyebrow - pull hair,Neck - scratch,7
+Eyelash - pull hair,Forehead - scratch,7
+Neck - pinch skin,Cheek - pinch skin,7
+Neck - pinch skin,Forehead - pull hairline,7
+Neck - scratch,Eyebrow - pull hair,7
+Pull air toward your face,Write name in air,7
+Write name in air,Above ear - pull hair,7
+Write name on leg,Scratch knee/leg skin,7
+Above ear - pull hair,Neck - scratch,6
+Cheek - pinch skin,Neck - scratch,6
+Scratch knee/leg skin,Pinch knee/leg skin,6
+Scratch knee/leg skin,Write name on leg,6
+Wave hello,Above ear - pull hair,6
+Wave hello,Pull air toward your face,6
+Write name in air,Pull air toward your face,6
+Write name in air,Wave hello,6
+Write name on leg,Pinch knee/leg skin,6
+Cheek - pinch skin,Above ear - pull hair,5
+Eyebrow - pull hair,Neck - pinch skin,5
+Forehead - scratch,Cheek - pinch skin,5
+Glasses on/off,Drink from bottle/cup,5
+Pinch knee/leg skin,Scratch knee/leg skin,5
+Text on phone,Eyelash - pull hair,5
+Above ear - pull hair,Cheek - pinch skin,4
+Above ear - pull hair,Forehead - scratch,4
+Eyelash - pull hair,Neck - scratch,4
+Forehead - scratch,Neck - scratch,4
+Forehead - scratch,Text on phone,4
+Neck - pinch skin,Eyebrow - pull hair,4
+Pinch knee/leg skin,Write name on leg,4
+Pull air toward your face,Wave hello,4
+Text on phone,Forehead - scratch,4
+Eyebrow - pull hair,Text on phone,3
+Eyelash - pull hair,Text on phone,3
+Eyelash - pull hair,Wave hello,3
+Eyelash - pull hair,Write name in air,3
+Forehead - pull hairline,Text on phone,3
+Neck - pinch skin,Text on phone,3
+Scratch knee/leg skin,Feel around in tray and pull out an object,3
+Text on phone,Eyebrow - pull hair,3
+Wave hello,Eyelash - pull hair,3
+Write name in air,Cheek - pinch skin,3
+Write name in air,Eyelash - pull hair,3
+Write name in air,Feel around in tray and pull out an object,3
+Above ear - pull hair,Eyebrow - pull hair,2
+Above ear - pull hair,Feel around in tray and pull out an object,2
+Cheek - pinch skin,Drink from bottle/cup,2
+Cheek - pinch skin,Text on phone,2
+Cheek - pinch skin,Wave hello,2
+Drink from bottle/cup,Text on phone,2
+Eyebrow - pull hair,Wave hello,2
+Eyelash - pull hair,Feel around in tray and pull out an object,2
+Feel around in tray and pull out an object,Eyelash - pull hair,2
+Forehead - pull hairline,Neck - pinch skin,2
+Forehead - pull hairline,Wave hello,2
+Forehead - scratch,Eyelash - pull hair,2
+Forehead - scratch,Neck - pinch skin,2
+Forehead - scratch,Wave hello,2
+Forehead - scratch,Write name on leg,2
+Neck - pinch skin,Feel around in tray and pull out an object,2
+Neck - pinch skin,Forehead - scratch,2
+Neck - scratch,Feel around in tray and pull out an object,2
+Neck - scratch,Text on phone,2
+Pinch knee/leg skin,Feel around in tray and pull out an object,2
+Pinch knee/leg skin,Neck - scratch,2
+Pull air toward your face,Above ear - pull hair,2
+Pull air toward your face,Cheek - pinch skin,2
+Pull air toward your face,Feel around in tray and pull out an object,2
+Pull air toward your face,Forehead - pull hairline,2
+Text on phone,Forehead - pull hairline,2
+Text on phone,Neck - pinch skin,2
+Text on phone,Pinch knee/leg skin,2
+Text on phone,Scratch knee/leg skin,2
+Wave hello,Feel around in tray and pull out an object,2
+Write name in air,Forehead - pull hairline,2
+Write name on leg,Text on phone,2
+Above ear - pull hair,Pull air toward your face,1
+Above ear - pull hair,Text on phone,1
+Above ear - pull hair,Wave hello,1
+Above ear - pull hair,Write name in air,1
+Above ear - pull hair,Write name on leg,1
+Cheek - pinch skin,Feel around in tray and pull out an object,1
+Cheek - pinch skin,Scratch knee/leg skin,1
+Cheek - pinch skin,Write name in air,1
+Cheek - pinch skin,Write name on leg,1
+Drink from bottle/cup,Above ear - pull hair,1
+Drink from bottle/cup,Cheek - pinch skin,1
+Drink from bottle/cup,Forehead - pull hairline,1
+Drink from bottle/cup,Glasses on/off,1
+Eyebrow - pull hair,Drink from bottle/cup,1
+Eyebrow - pull hair,Write name in air,1
+Eyelash - pull hair,Above ear - pull hair,1
+Eyelash - pull hair,Pull air toward your face,1
+Eyelash - pull hair,Write name on leg,1
+Feel around in tray and pull out an object,Pull air toward your face,1
+Feel around in tray and pull out an object,Scratch knee/leg skin,1
+Forehead - pull hairline,Pinch knee/leg skin,1
+Forehead - pull hairline,Pull air toward your face,1
+Forehead - scratch,Above ear - pull hair,1
+Glasses on/off,Above ear - pull hair,1
+Glasses on/off,Forehead - pull hairline,1
+Glasses on/off,Forehead - scratch,1
+Glasses on/off,Pull air toward your face,1
+Neck - pinch skin,Drink from bottle/cup,1
+Neck - pinch skin,Pull air toward your face,1
+Neck - scratch,Drink from bottle/cup,1
+Neck - scratch,Pull air toward your face,1
+Neck - scratch,Write name in air,1
+Pinch knee/leg skin,Eyelash - pull hair,1
+Pinch knee/leg skin,Text on phone,1
+Pull air toward your face,Drink from bottle/cup,1
+Pull air toward your face,Eyelash - pull hair,1
+Pull air toward your face,Scratch knee/leg skin,1
+Scratch knee/leg skin,Neck - pinch skin,1
+Scratch knee/leg skin,Text on phone,1
+Text on phone,Cheek - pinch skin,1
+Text on phone,Feel around in tray and pull out an object,1
+Text on phone,Neck - scratch,1
+Text on phone,Wave hello,1
+Wave hello,Drink from bottle/cup,1
+Wave hello,Forehead - pull hairline,1
+Wave hello,Scratch knee/leg skin,1
+Wave hello,Text on phone,1
+Write name in air,Drink from bottle/cup,1
+Write name in air,Glasses on/off,1
+Write name in air,Neck - pinch skin,1
+Write name in air,Write name on leg,1
+Write name on leg,Feel around in tray and pull out an object,1
+Write name on leg,Neck - scratch,1

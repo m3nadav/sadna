@@ -139,43 +139,52 @@ TOF_CNN_FEAT_SIZE = 384
 class ToFCNN(nn.Module):
     """
     2D CNN for ToF sensors (input already normalized to [0, 1] per frame):
-    - Conv1: 8 filters 2×4, stride 2×2
+    - Conv1: 8 filters 2×4, stride 2×2 → PReLU → Dropout (MC)
     - Fuse pairwise -> 4 channels
-    - Conv2: 16 filters 2×2, stride 1×1
+    - Conv2: 16 filters 2×2, stride 1×1 → PReLU → Dropout (MC)
     - Fuse pairwise -> 8 channels
-    - Conv3: 32 filters 2×2, stride 1×1 (with padding)
-    - FC: 128, 100, num_classes
+    - Conv3: 32 filters 2×2, stride 1×1 (with padding) → PReLU → Dropout (MC)
+    - FC: 128, 100, num_classes (PReLU + Dropout after each hidden layer)
     Input: (B, max_T, 5, 8, 8) and lengths (B,) — padded ToF sequences; pooling over T is masked by lengths.
+
+    Dropout layers follow Monte Carlo Dropout (same as nn.Dropout): active in train mode.
+    For MC uncertainty at inference, run multiple forwards with model.train() so dropout stays active.
     """
 
-    def __init__(self, num_classes=13):
+    def __init__(self, num_classes=13, dropout_p=0.1):
         super(ToFCNN, self).__init__()
+        self.dropout_p = dropout_p
         # Conv1: 5 -> 8, kernel (2, 4), stride (2, 2) -> (4, 3)
         self.conv1 = nn.Sequential(
             nn.Conv2d(5, 8, kernel_size=(2, 4), stride=(2, 2)),
             nn.BatchNorm2d(8),
-            nn.ReLU(),
+            nn.PReLU(num_parameters=8),
+            nn.Dropout(p=dropout_p),
         )
         # After conv1: (B, 8, 4, 3). Fuse pairwise -> (B, 4, 4, 3)
         # Conv2: 4 -> 16, kernel 2×2, stride 1×1 -> (3, 2)
         self.conv2 = nn.Sequential(
             nn.Conv2d(4, 16, kernel_size=2, stride=1),
             nn.BatchNorm2d(16),
-            nn.ReLU(),
+            nn.PReLU(num_parameters=16),
+            nn.Dropout(p=dropout_p),
         )
         # After conv2: (B, 16, 3, 2). Fuse pairwise -> (B, 8, 3, 2)
         # Conv3: 8 -> 32, kernel 2×2, stride 1×1, padding (1, 1) -> (4, 3)
         self.conv3 = nn.Sequential(
             nn.Conv2d(8, 32, kernel_size=2, stride=1, padding=(1, 1)),
             nn.BatchNorm2d(32),
-            nn.ReLU(),
+            nn.PReLU(num_parameters=32),
+            nn.Dropout(p=dropout_p),
         )
         # After conv3: (B, 32, 4, 3). Flatten -> 384
         self.classifier = nn.Sequential(
             nn.Linear(TOF_CNN_FEAT_SIZE, 128),
-            nn.ReLU(),
+            nn.PReLU(num_parameters=128),
+            nn.Dropout(p=dropout_p),
             nn.Linear(128, 100),
-            nn.ReLU(),
+            nn.PReLU(num_parameters=100),
+            nn.Dropout(p=dropout_p),
             nn.Linear(100, num_classes),
         )
 
@@ -473,7 +482,12 @@ def main():
         save_path=save_path,
     )
 
-    model.load_state_dict(torch.load(save_path, map_location=device))
+    # PyTorch 2.6+: torch.load defaults to weights_only=True; use False for trusted local files
+    ckpt = torch.load(save_path, map_location=device, weights_only=False)
+    if isinstance(ckpt, dict) and "model_state_dict" in ckpt:
+        model.load_state_dict(ckpt["model_state_dict"])
+    else:
+        model.load_state_dict(ckpt)
     save_model_and_metadata(
         model,
         optimizer,
