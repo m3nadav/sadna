@@ -1,0 +1,22 @@
+--- Analyzing Specific Misclassifications ---
+
+Top 10 Misclassified Pairs:
+1. True: 'Forehead - pull hairline' was misclassified as Predicted: 'Forehead - scratch' (Count: 54)
+2. True: 'Eyebrow - pull hair' was misclassified as Predicted: 'Forehead - scratch' (Count: 38)
+3. True: 'Wave hello' was misclassified as Predicted: 'Write name in air' (Count: 33)
+4. True: 'Eyelash - pull hair' was misclassified as Predicted: 'Forehead - scratch' (Count: 24)
+5. True: 'Neck - scratch' was misclassified as Predicted: 'Forehead - scratch' (Count: 24)
+6. True: 'Neck - pinch skin' was misclassified as Predicted: 'Neck - scratch' (Count: 20)
+7. True: 'Above ear - pull hair' was misclassified as Predicted: 'Neck - pinch skin' (Count: 18)
+8. True: 'Neck - pinch skin' was misclassified as Predicted: 'Above ear - pull hair' (Count: 18)
+9. True: 'Pull air toward your face' was misclassified as Predicted: 'Write name in air' (Count: 17)
+10. True: 'Above ear - pull hair' was misclassified as Predicted: 'Neck - scratch' (Count: 16)
+
+--- Key Observations from Misclassifications ---
+
+'Eyelash - pull hair' is a common misprediction target. Gestures like 'Cheek - pinch skin', 'Eyebrow - pull hair', 'Neck - pinch skin' are often mistaken for it.
+'Forehead - pull hairline' also gets confused with others, including 'Cheek - pinch skin', 'Eyelash - pull hair', 'Forehead - scratch'.
+
+Further analysis often involves looking for:
+- Reciprocal confusions (e.g., A mistaken for B, and B mistaken for A)
+- Specific BFRB vs. non-BFRB confusions

@@ -9,8 +9,8 @@ Runs the same reporting pipeline as analyze_fusion_tof_multistream_cnn.py (repor
 - Confidence histograms and ROC use **main model** logits/probs (documented); gated max-prob would mix two heads.
 
 Outputs:
-  analysis_results/fusion_tof_finetune_gated_val/
-  analysis_results/fusion_tof_finetune_gated_test/
+  analysis_results/fusion_tof_finetune_gated_val_conv2d/
+  analysis_results/fusion_tof_finetune_gated_test_conv2d/
 
 Usage:
   python analyze_fusion_tof_finetune_gated.py           # both val and test
@@ -39,8 +39,8 @@ GATING_JSON = "models/deep_learning_models/fusion_tof_specialists_gating.json"
 
 def output_dir_for_gated_split(split: str) -> str:
     if split == "val":
-        return "analysis_results/fusion_tof_finetune_gated_val"
-    return "analysis_results/fusion_tof_finetune_gated_test"
+        return "analysis_results/fusion_tof_finetune_gated_val_conv2d"
+    return "analysis_results/fusion_tof_finetune_gated_test_conv2d"
 
 
 def load_gating_and_specialists(device: torch.device, config_path: str = GATING_JSON):
@@ -137,7 +137,9 @@ def run_one_split(split: str, cfg: dict, specialists: dict, blocks: list):
     out_dir = output_dir_for_gated_split(split)
     os.makedirs(out_dir, exist_ok=True)
 
+    # Analysis helpers write to ACTIVE_OUTPUT_DIR, not OUTPUT_DIR (see analyze_fusion_tof_multistream_cnn).
     afc.OUTPUT_DIR = out_dir
+    afc.ACTIVE_OUTPUT_DIR = out_dir
 
     model, eval_loader, target_names, num_classes, le, _ = load_model_and_data(
         FINETUNE_CHECKPOINT_PATH,

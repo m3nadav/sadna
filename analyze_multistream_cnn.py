@@ -35,7 +35,7 @@ from train_multistream_cnn import (
 
 # Default paths
 CHECKPOINT_PATH = "models/deep_learning_models/Multistream_CNN_acc_only.pth"
-OUTPUT_DIR = "analysis_results/multistream_cnn"
+OUTPUT_DIR = "analysis_results/multistream_cnn_conv2d"
 
 
 def ensure_output_dir():

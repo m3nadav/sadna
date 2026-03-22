@@ -40,7 +40,7 @@ from train_fusion_multistream_cnn import (
 
 # Default paths
 FUSION_CHECKPOINT_PATH = "models/deep_learning_models/Fusion_Multistream_CNN.pth"
-OUTPUT_DIR = "analysis_results/fusion_multistream_cnn"
+OUTPUT_DIR = "analysis_results/fusion_multistream_cnn_conv2d"
 
 
 def ensure_output_dir():
