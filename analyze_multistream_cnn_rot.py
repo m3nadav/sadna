@@ -37,7 +37,7 @@ from train_multistream_cnn_rot import (
 
 # Default paths
 CHECKPOINT_PATH = "models/deep_learning_models/Multistream_CNN_rot_only.pth"
-OUTPUT_DIR = "analysis_results/multistream_cnn_rot"
+OUTPUT_DIR = "analysis_results/multistream_cnn_rot_conv2d"
 
 
 def ensure_output_dir():

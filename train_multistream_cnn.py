@@ -115,7 +115,7 @@ class MinMaxNormalize(nn.Module):
 
 
 class MultistreamCNNInertialNet(nn.Module):
-    """Acc-only Multistream CNN from Project.ipynb: norm + conv blocks + pool + FC."""
+    """Acc-only Multistream CNN: (B,3,T)->(B,1,3,T) 2D convs + pool + FC."""
 
     def __init__(self, num_classes=18):
         super(MultistreamCNNInertialNet, self).__init__()
@@ -123,19 +123,21 @@ class MultistreamCNNInertialNet(nn.Module):
         self.norm = MinMaxNormalize(-20.0, 20.0)
 
         self.conv1_block = nn.Sequential(
-            nn.Conv1d(3, 32, kernel_size=4, stride=4),
-            nn.BatchNorm1d(32),
+            nn.Conv2d(1, 32, kernel_size=(3, 4), stride=(1, 4)),
+            nn.BatchNorm2d(32),
             nn.ReLU(),
         )
 
         self.conv2_block = nn.Sequential(
-            nn.Conv1d(32, 64, kernel_size=6, stride=2),
-            nn.BatchNorm1d(64),
+            nn.Conv2d(32, 64, kernel_size=(2, 6), stride=(2, 2), padding=(1, 3)),
+            nn.BatchNorm2d(64),
             nn.ReLU(),
         )
 
-        self.max_pool = nn.MaxPool1d(kernel_size=2, stride=1)
-        self.adaptive_avg_pool = nn.AdaptiveAvgPool1d(1)
+        self.max_pool = nn.MaxPool2d(
+            kernel_size=(1, 2), stride=(1, 1), padding=(0, 1)
+        )
+        self.adaptive_avg_pool = nn.AdaptiveAvgPool2d(1)
 
         self.classifier = nn.Sequential(
             nn.Linear(64, 128),
@@ -146,7 +148,7 @@ class MultistreamCNNInertialNet(nn.Module):
         )
 
     def forward(self, acc):
-        x = self.norm(acc)
+        x = self.norm(acc).unsqueeze(1)
         x = self.conv1_block(x)
         x = self.conv2_block(x)
         x = self.max_pool(x)

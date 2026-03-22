@@ -1,0 +1,27 @@
+Validation Set Performance Analysis (Fusion ToF Multistream CNN)
+============================================================
+
+                                            precision    recall  f1-score   support
+
+                     Above ear - pull hair       0.65      0.61      0.63        90
+                        Cheek - pinch skin       0.47      0.41      0.44        90
+                     Drink from bottle/cup       0.78      0.88      0.82        24
+                       Eyebrow - pull hair       0.47      0.41      0.44        90
+                       Eyelash - pull hair       0.47      0.61      0.53        92
+Feel around in tray and pull out an object       0.82      0.96      0.88        24
+                  Forehead - pull hairline       0.60      0.63      0.61        92
+                        Forehead - scratch       0.66      0.55      0.60        92
+                            Glasses on/off       0.84      0.88      0.86        24
+                         Neck - pinch skin       0.53      0.52      0.52        92
+                            Neck - scratch       0.61      0.53      0.57        92
+                       Pinch knee/leg skin       0.53      0.38      0.44        24
+                 Pull air toward your face       0.80      0.69      0.74        68
+                     Scratch knee/leg skin       0.26      0.46      0.33        24
+                             Text on phone       0.79      0.92      0.85        92
+                                Wave hello       0.61      0.57      0.59        68
+                         Write name in air       0.55      0.63      0.59        68
+                         Write name on leg       0.53      0.33      0.41        24
+
+                                  accuracy                           0.60      1170
+                                 macro avg       0.61      0.61      0.60      1170
+                              weighted avg       0.60      0.60      0.59      1170

@@ -135,32 +135,31 @@ class MinMaxNormalize(nn.Module):
 class MultistreamCNNRotNet(nn.Module):
     """
     Multistream CNN on rotation (quaternion) data only.
-    Same structure as MultistreamCNNInertialNet but 4 input channels (rot_x, rot_y, rot_z, rot_w).
-    Quaternions normalized to [-1, 1] (unit quaternion range).
+    Same 2D conv stack as MultistreamCNNInertialNet: (B,4,T)->(B,1,4,T), then conv2d blocks.
+    conv1 uses kernel (4,4) to cover the four quaternion axes (acc model uses (3,4) for three axes).
     """
 
     def __init__(self, num_classes=18):
         super(MultistreamCNNRotNet, self).__init__()
 
-        # Quaternions typically in [-1, 1]
         self.norm = MinMaxNormalize(-1.0, 1.0)
 
-        # First Conv Layer: 4 channels -> 32
         self.conv1_block = nn.Sequential(
-            nn.Conv1d(4, 32, kernel_size=4, stride=4),
-            nn.BatchNorm1d(32),
+            nn.Conv2d(1, 32, kernel_size=(4, 4), stride=(1, 4)),
+            nn.BatchNorm2d(32),
             nn.ReLU(),
         )
 
-        # Second Conv Layer: 32 -> 64
         self.conv2_block = nn.Sequential(
-            nn.Conv1d(32, 64, kernel_size=6, stride=2),
-            nn.BatchNorm1d(64),
+            nn.Conv2d(32, 64, kernel_size=(2, 6), stride=(2, 2), padding=(1, 3)),
+            nn.BatchNorm2d(64),
             nn.ReLU(),
         )
 
-        self.max_pool = nn.MaxPool1d(kernel_size=2, stride=1)
-        self.adaptive_avg_pool = nn.AdaptiveAvgPool1d(1)
+        self.max_pool = nn.MaxPool2d(
+            kernel_size=(1, 2), stride=(1, 1), padding=(0, 1)
+        )
+        self.adaptive_avg_pool = nn.AdaptiveAvgPool2d(1)
 
         self.classifier = nn.Sequential(
             nn.Linear(64, 128),
@@ -171,7 +170,7 @@ class MultistreamCNNRotNet(nn.Module):
         )
 
     def forward(self, rot):
-        x = self.norm(rot)
+        x = self.norm(rot).unsqueeze(1)
         x = self.conv1_block(x)
         x = self.conv2_block(x)
         x = self.max_pool(x)

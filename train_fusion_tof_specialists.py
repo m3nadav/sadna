@@ -45,7 +45,7 @@ from train_fusion_tof_multistream_cnn_finetune import (
     TOF_CHECKPOINT_PATH,
 )
 
-VAL_ANALYSIS_DIR = Path("analysis_results/fusion_tof_multistream_cnn_finetune_val")
+VAL_ANALYSIS_DIR = Path("analysis_results/fusion_tof_multistream_cnn_conv2d_finetune_val")
 VAL_PREDICTIONS_NPZ = VAL_ANALYSIS_DIR / "predictions.npz"
 GATING_JSON = Path("models/deep_learning_models/fusion_tof_specialists_gating.json")
 SPECIALIST_DIR = Path("models/deep_learning_models")

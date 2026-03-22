@@ -120,10 +120,11 @@ class HeliosInertialNet(nn.Module):
 
     def __init__(self, num_classes=18):
         super(HeliosInertialNet, self).__init__()
+        self.input_norm = MinMaxNormalize(-20.0, 20.0)
+        # (B,3,T) -> (B,1,3,T): 2D conv over acc axes x time, then (B,64,T) for remaining 1D stack
         self.conv1 = nn.Sequential(
-            MinMaxNormalize(-20.0, 20.0),
-            nn.Conv1d(3, 64, kernel_size=7, padding=3),
-            nn.BatchNorm1d(64),
+            nn.Conv2d(1, 64, kernel_size=(3, 7), padding=(0, 3)),
+            nn.BatchNorm2d(64),
             nn.ReLU(),
             nn.Dropout(0.2),
         )
@@ -160,7 +161,8 @@ class HeliosInertialNet(nn.Module):
         )
 
     def forward(self, acc):
-        x = self.conv1(acc)
+        x = self.input_norm(acc).unsqueeze(1)
+        x = self.conv1(x).squeeze(2)
         x = self.conv2(x)
         x = self.conv3(x)
         x = x.permute(0, 2, 1)
@@ -386,7 +388,7 @@ def main():
 
     # 7. Train (saves best state_dict to save_path during training)
     os.makedirs("models/deep_learning_models", exist_ok=True)
-    save_path = "models/deep_learning_models/helios_inertial_net.pth"
+    save_path = "models/deep_learning_models/helios_inertial_net_2d_conv.pth"
     history = train_model(
         model,
         train_loader,

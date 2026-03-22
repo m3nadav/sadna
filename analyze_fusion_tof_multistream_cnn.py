@@ -7,11 +7,11 @@ Test or validation set: same subject split as training; no drop for missing ROT/
 uses per-sequence has_rot / has_tof flags (matches train_fusion_tof_multistream_cnn.py).
 
 When run as a script, you are prompted for test vs validation and baseline vs finetune model.
-Output folders:
-  baseline test: `analysis_results/fusion_tof_multistream_cnn/`
-  baseline val:  `analysis_results/fusion_tof_multistream_cnn_val/`
-  finetune test: `analysis_results/fusion_tof_multistream_cnn_finetune/`
-  finetune val:  `analysis_results/fusion_tof_multistream_cnn_finetune_val/`
+Artifacts are written under a directory derived from `OUTPUT_DIR` (base name) plus suffixes:
+  baseline + test: `OUTPUT_DIR`
+  baseline + val:  `OUTPUT_DIR` + `_val`
+  finetune + test: `OUTPUT_DIR` + `_finetune`
+  finetune + val:  `OUTPUT_DIR` + `_finetune_val`
 """
 import os
 import numpy as np
@@ -60,21 +60,25 @@ from train_fusion_tof_multistream_cnn_finetune import (
 
 TRIPLE_CHECKPOINT_PATH = "models/deep_learning_models/Fusion_ToF_Multistream_CNN.pth"
 FINETUNE_CHECKPOINT_PATH = "models/deep_learning_models/Fusion_ToF_Multistream_CNN_finetune.pth"
-OUTPUT_DIR = "analysis_results/fusion_tof_multistream_cnn"
+OUTPUT_DIR = "analysis_results/fusion_tof_multistream_cnn_conv2d"
+# Effective path for this run; `main()` sets from `output_dir_for_split` before saving.
+ACTIVE_OUTPUT_DIR = OUTPUT_DIR
 
 
 def output_dir_for_split(split: str, variant: str = "baseline") -> str:
+    """Resolve save directory: base `OUTPUT_DIR` plus val / finetune suffixes."""
+    base = OUTPUT_DIR.rstrip("/")
     if variant == "finetune":
         if split == "val":
-            return "analysis_results/fusion_tof_multistream_cnn_finetune_val"
-        return "analysis_results/fusion_tof_multistream_cnn_finetune"
+            return f"{base}_finetune_val"
+        return f"{base}_finetune"
     if split == "val":
-        return "analysis_results/fusion_tof_multistream_cnn_val"
-    return "analysis_results/fusion_tof_multistream_cnn"
+        return f"{base}_val"
+    return base
 
 
 def ensure_output_dir():
-    os.makedirs(OUTPUT_DIR, exist_ok=True)
+    os.makedirs(ACTIVE_OUTPUT_DIR, exist_ok=True)
 
 
 def load_model_and_data(
@@ -175,7 +179,7 @@ def run_evaluation(model, test_loader, device):
 def analysis_classification_report_and_cm(all_labels, all_preds, target_names, split_label="Test"):
     ensure_output_dir()
     report = classification_report(all_labels, all_preds, target_names=target_names)
-    path_txt = os.path.join(OUTPUT_DIR, "classification_report.txt")
+    path_txt = os.path.join(ACTIVE_OUTPUT_DIR, "classification_report.txt")
     with open(path_txt, "w") as f:
         f.write(f"{split_label} Set Performance Analysis (Fusion ToF Multistream CNN)\n")
         f.write("=" * 60 + "\n\n")
@@ -195,7 +199,7 @@ def analysis_classification_report_and_cm(all_labels, all_preds, target_names, s
     plt.title("Confusion Matrix: Fusion ToF Multistream CNN — BFRB vs. Non-BFRB Gestures")
     plt.ylabel("True Gesture")
     plt.xlabel("Predicted Gesture")
-    path_fig = os.path.join(OUTPUT_DIR, "confusion_matrix.png")
+    path_fig = os.path.join(ACTIVE_OUTPUT_DIR, "confusion_matrix.png")
     plt.savefig(path_fig, dpi=150, bbox_inches="tight")
     plt.close()
     print(f"Saved: {path_fig}")
@@ -251,13 +255,13 @@ def analysis_misclassifications(cm, target_names):
     lines.append("- Specific BFRB vs. non-BFRB confusions")
 
     text = "\n".join(lines)
-    path_txt = os.path.join(OUTPUT_DIR, "misclassifications_analysis.txt")
+    path_txt = os.path.join(ACTIVE_OUTPUT_DIR, "misclassifications_analysis.txt")
     with open(path_txt, "w") as f:
         f.write(text)
     print(f"Saved: {path_txt}")
 
     df_mc = pd.DataFrame(misclassifications)
-    path_csv = os.path.join(OUTPUT_DIR, "misclassifications.csv")
+    path_csv = os.path.join(ACTIVE_OUTPUT_DIR, "misclassifications.csv")
     df_mc.to_csv(path_csv, index=False)
     print(f"Saved: {path_csv}")
     return misclassifications
@@ -278,7 +282,7 @@ def analysis_per_class_metrics(all_labels, all_preds, target_names):
         }
     ).sort_values("F1", ascending=True)
 
-    path_csv = os.path.join(OUTPUT_DIR, "per_class_metrics.csv")
+    path_csv = os.path.join(ACTIVE_OUTPUT_DIR, "per_class_metrics.csv")
     metrics_df.to_csv(path_csv, index=False)
     print(f"Saved: {path_csv}")
 
@@ -296,13 +300,13 @@ def analysis_per_class_metrics(all_labels, all_preds, target_names):
     ax.set_title("Per-Class Precision, Recall & F1 (sorted by F1) — Fusion ToF Multistream CNN")
     ax.legend()
     plt.tight_layout()
-    path_fig = os.path.join(OUTPUT_DIR, "per_class_precision_recall_f1.png")
+    path_fig = os.path.join(ACTIVE_OUTPUT_DIR, "per_class_precision_recall_f1.png")
     plt.savefig(path_fig, dpi=150, bbox_inches="tight")
     plt.close()
     print(f"Saved: {path_fig}")
 
     low_f1 = metrics_df[metrics_df["F1"] < 0.5][["Class", "Precision", "Recall", "F1", "Support"]]
-    path_low = os.path.join(OUTPUT_DIR, "classes_f1_below_0.5.txt")
+    path_low = os.path.join(ACTIVE_OUTPUT_DIR, "classes_f1_below_0.5.txt")
     with open(path_low, "w") as f:
         f.write("Classes with F1 < 0.5:\n")
         f.write(low_f1.to_string(index=False))
@@ -350,7 +354,7 @@ def analysis_confidence(all_outputs, all_labels, all_preds, target_names):
     axes[1].legend()
     axes[1].grid(alpha=0.3)
     plt.tight_layout()
-    path_fig = os.path.join(OUTPUT_DIR, "confidence_analysis.png")
+    path_fig = os.path.join(ACTIVE_OUTPUT_DIR, "confidence_analysis.png")
     plt.savefig(path_fig, dpi=150, bbox_inches="tight")
     plt.close()
     print(f"Saved: {path_fig}")
@@ -364,7 +368,7 @@ def analysis_confidence(all_outputs, all_labels, all_preds, target_names):
         f"Fraction of wrong predictions with confidence > 0.9: {frac_wrong_high_conf:.1%}  (high = model is confidently wrong)",
     ]
     text = "\n".join(lines)
-    path_txt = os.path.join(OUTPUT_DIR, "confidence_summary.txt")
+    path_txt = os.path.join(ACTIVE_OUTPUT_DIR, "confidence_summary.txt")
     with open(path_txt, "w") as f:
         f.write(text)
     print(f"Saved: {path_txt}")
@@ -399,7 +403,7 @@ def analysis_region_accuracy(all_labels, all_preds, target_names):
     region_acc["accuracy"] = region_acc["correct"] / region_acc["total"]
     region_acc = region_acc.sort_values("accuracy")
 
-    path_csv = os.path.join(OUTPUT_DIR, "region_accuracy.csv")
+    path_csv = os.path.join(ACTIVE_OUTPUT_DIR, "region_accuracy.csv")
     region_acc.to_csv(path_csv)
     print(f"Saved: {path_csv}")
 
@@ -413,12 +417,12 @@ def analysis_region_accuracy(all_labels, all_preds, target_names):
     for i, (region, row) in enumerate(region_acc.iterrows()):
         ax.text(row["accuracy"] + 0.01, i, f"{row['accuracy']:.0%}  (n={int(row['total'])})", va="center", fontsize=8)
     plt.tight_layout()
-    path_fig = os.path.join(OUTPUT_DIR, "region_accuracy.png")
+    path_fig = os.path.join(ACTIVE_OUTPUT_DIR, "region_accuracy.png")
     plt.savefig(path_fig, dpi=150, bbox_inches="tight")
     plt.close()
     print(f"Saved: {path_fig}")
 
-    path_txt = os.path.join(OUTPUT_DIR, "region_accuracy_table.txt")
+    path_txt = os.path.join(ACTIVE_OUTPUT_DIR, "region_accuracy_table.txt")
     with open(path_txt, "w") as f:
         f.write("Per-region accuracy table:\n")
         f.write(region_acc[["correct", "total", "accuracy"]].to_string())
@@ -477,7 +481,7 @@ def analysis_roc_curves(all_labels, all_probs, target_names):
 
     plt.suptitle("One-vs-Rest ROC Curves per Gesture Class — Fusion ToF Multistream CNN", fontsize=12, y=1.01)
     plt.tight_layout()
-    path_fig = os.path.join(OUTPUT_DIR, "roc_curves.png")
+    path_fig = os.path.join(ACTIVE_OUTPUT_DIR, "roc_curves.png")
     plt.savefig(path_fig, dpi=150, bbox_inches="tight")
     plt.close()
     print(f"Saved: {path_fig}")
@@ -488,11 +492,11 @@ def analysis_roc_curves(all_labels, all_probs, target_names):
             "AUC": [roc_auc[i] for i in range(n_classes)],
         }
     ).sort_values("AUC")
-    path_csv = os.path.join(OUTPUT_DIR, "roc_auc_per_class.csv")
+    path_csv = os.path.join(ACTIVE_OUTPUT_DIR, "roc_auc_per_class.csv")
     auc_summary.to_csv(path_csv, index=False)
     print(f"Saved: {path_csv}")
 
-    path_txt = os.path.join(OUTPUT_DIR, "roc_auc_summary.txt")
+    path_txt = os.path.join(ACTIVE_OUTPUT_DIR, "roc_auc_summary.txt")
     with open(path_txt, "w") as f:
         f.write(f"Macro-average AUC: {macro_auc:.4f}\n")
         f.write("\nPer-class AUC (lowest first):\n")
@@ -504,21 +508,21 @@ def analysis_roc_curves(all_labels, all_probs, target_names):
 def save_predictions(all_labels, all_preds, all_outputs, all_probs):
     ensure_output_dir()
     np.savez(
-        os.path.join(OUTPUT_DIR, "predictions.npz"),
+        os.path.join(ACTIVE_OUTPUT_DIR, "predictions.npz"),
         all_labels=np.array(all_labels),
         all_preds=np.array(all_preds),
         all_outputs=all_outputs,
         all_probs=all_probs,
     )
-    print(f"Saved: {os.path.join(OUTPUT_DIR, 'predictions.npz')}")
+    print(f"Saved: {os.path.join(ACTIVE_OUTPUT_DIR, 'predictions.npz')}")
 
 
 def main(checkpoint_path=None, split="test", variant="baseline"):
-    global OUTPUT_DIR
+    global ACTIVE_OUTPUT_DIR
+    ACTIVE_OUTPUT_DIR = output_dir_for_split(split, variant)
     if checkpoint_path is None:
         checkpoint_path = FINETUNE_CHECKPOINT_PATH if variant == "finetune" else TRIPLE_CHECKPOINT_PATH
-    OUTPUT_DIR = output_dir_for_split(split, variant)
-    print(f"Loading model ({variant}) and {split} data... (checkpoint: {checkpoint_path}, output: {OUTPUT_DIR})")
+    print(f"Loading model ({variant}) and {split} data... (checkpoint: {checkpoint_path}, output: {ACTIVE_OUTPUT_DIR})")
     model, eval_loader, target_names, num_classes, le, split_tag = load_model_and_data(
         checkpoint_path, split=split, variant=variant
     )
@@ -544,7 +548,7 @@ def main(checkpoint_path=None, split="test", variant="baseline"):
     analysis_roc_curves(all_labels, all_probs, target_names)
     save_predictions(all_labels, all_preds, all_outputs, all_probs)
 
-    print(f"\nAll results saved under: {os.path.abspath(OUTPUT_DIR)}")
+    print(f"\nAll results saved under: {os.path.abspath(ACTIVE_OUTPUT_DIR)}")
 
 
 def _prompt_split() -> str:

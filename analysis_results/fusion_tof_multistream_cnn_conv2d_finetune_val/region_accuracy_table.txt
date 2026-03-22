@@ -1,0 +1,19 @@
+Per-region accuracy table:
+                                            correct  total  accuracy
+true_region                                                         
+Write name on leg                                 8     24  0.333333
+Pinch knee/leg skin                               9     24  0.375000
+Cheek                                            37     90  0.411111
+Eyebrow                                          37     90  0.411111
+Scratch knee/leg skin                            11     24  0.458333
+Neck                                             97    184  0.527174
+Wave hello                                       39     68  0.573529
+Forehead                                        109    184  0.592391
+Eyelash                                          56     92  0.608696
+Above ear                                        55     90  0.611111
+Write name in air                                43     68  0.632353
+Pull air toward your face                        47     68  0.691176
+Drink from bottle/cup                            21     24  0.875000
+Glasses on/off                                   21     24  0.875000
+Text on phone                                    85     92  0.923913
+Feel around in tray and pull out an object       23     24  0.958333
