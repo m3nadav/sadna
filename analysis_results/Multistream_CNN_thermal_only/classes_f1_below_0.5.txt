@@ -1,0 +1,15 @@
+Classes with F1 < 0.5:
+                    Class  Precision   Recall       F1  Support
+    Scratch knee/leg skin   0.400000 0.083333 0.137931       24
+        Neck - pinch skin   0.194444 0.145833 0.166667       96
+      Eyebrow - pull hair   0.250000 0.135417 0.175676       96
+        Write name in air   0.318182 0.200000 0.245614       70
+           Neck - scratch   0.414634 0.177083 0.248175       96
+       Cheek - pinch skin   0.251969 0.333333 0.286996       96
+      Pinch knee/leg skin   0.291667 0.291667 0.291667       24
+      Eyelash - pull hair   0.261194 0.364583 0.304348       96
+        Write name on leg   0.437500 0.291667 0.350000       24
+ Forehead - pull hairline   0.463768 0.333333 0.387879       96
+               Wave hello   0.316547 0.619718 0.419048       71
+       Forehead - scratch   0.346667 0.541667 0.422764       96
+Pull air toward your face   0.577778 0.371429 0.452174       70

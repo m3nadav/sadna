@@ -38,6 +38,7 @@ from train_multistream_cnn import (
     apply_label_encoding,
     BFRB_GESTURES,
     MultistreamCNNInertialNet,
+    compute_acc_zscore_stats,
 )
 from train_multistream_cnn_rot import (
     MultistreamCNNRotNet,
@@ -48,14 +49,24 @@ from train_multistream_cnn_rot import (
 # ---------------------------------------------------------------------------
 # Feature extractors: acc and rot models with classifier replaced by feature-only part (64-dim)
 # ---------------------------------------------------------------------------
-def make_acc_feature_extractor(num_classes, checkpoint_path, device):
+def make_acc_feature_extractor(num_classes, checkpoint_path, device, trainset_df=None):
     """Load acc model and replace classifier with feature part only (output 64-dim). Freeze all."""
-    model = MultistreamCNNInertialNet(num_classes=num_classes)
     ckpt = torch.load(checkpoint_path, map_location=device, weights_only=False)
-    if "model_state_dict" in ckpt:
-        model.load_state_dict(ckpt["model_state_dict"])
+    sd = ckpt["model_state_dict"] if isinstance(ckpt, dict) and "model_state_dict" in ckpt else ckpt
+    if isinstance(ckpt, dict) and "input_zscore_mean" in ckpt and "input_zscore_std" in ckpt:
+        m = np.asarray(ckpt["input_zscore_mean"], dtype=np.float32)
+        s = np.asarray(ckpt["input_zscore_std"], dtype=np.float32)
+    elif "norm.mean" in sd:
+        m = sd["norm.mean"].detach().cpu().numpy()
+        s = sd["norm.std"].detach().cpu().numpy()
+    elif trainset_df is not None:
+        m, s = compute_acc_zscore_stats(trainset_df)
     else:
-        model.load_state_dict(ckpt)
+        raise ValueError(
+            "Acc checkpoint missing input_zscore_mean/std or norm.mean/std; pass trainset_df or retrain."
+        )
+    model = MultistreamCNNInertialNet(num_classes=num_classes, norm_mean=m, norm_std=s)
+    model.load_state_dict(sd, strict="norm.mean" in sd)
     # classifier is Sequential(Linear(64,128), ReLU, Linear(128,64), ReLU, Linear(64,num_classes))
     # Keep only up to the last ReLU so output is 64-dim
     model.classifier = nn.Sequential(
@@ -173,6 +184,11 @@ def save_model_and_metadata(
         "val_sequence_ids": val_seq_ids,
         "test_sequence_ids": test_seq_ids,
     }
+    # Acc backbone z-score (same keys as acc-only checkpoints) for loaders / analysis
+    if hasattr(model, "acc_backbone") and hasattr(model.acc_backbone, "norm"):
+        if hasattr(model.acc_backbone.norm, "mean"):
+            checkpoint["input_zscore_mean"] = model.acc_backbone.norm.mean.detach().cpu().numpy()
+            checkpoint["input_zscore_std"] = model.acc_backbone.norm.std.detach().cpu().numpy()
     torch.save(checkpoint, filepath)
     print(f"Model checkpoint saved to {filepath}")
 
@@ -323,7 +339,7 @@ def main():
 
     # Load frozen backbones (feature extractors)
     print("Loading acc backbone (frozen)...")
-    acc_backbone = make_acc_feature_extractor(num_classes, ACC_CHECKPOINT_PATH, device)
+    acc_backbone = make_acc_feature_extractor(num_classes, ACC_CHECKPOINT_PATH, device, trainset_df)
     print("Loading rot backbone (frozen)...")
     rot_backbone = make_rot_feature_extractor(num_classes, ROT_CHECKPOINT_PATH, device)
 

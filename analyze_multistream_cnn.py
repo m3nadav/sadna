@@ -1,8 +1,11 @@
 """
-Analyze Multistream_CNN_acc_only model: run the same evaluations as in Project.ipynb
-and save all analysis results (figures, CSV, text).
+Analyze Multistream CNN checkpoints (accelerometer or thermal): same evaluations as in Project.ipynb;
+save figures, CSV, and text under the selected profile's OUTPUT_DIR.
+
+Run without args for an interactive prompt, or pass: 1/acc or 2/thermal.
 """
 import os
+import sys
 import numpy as np
 import pandas as pd
 import torch
@@ -31,19 +34,72 @@ from train_multistream_cnn import (
     MultistreamCNNInertialNet,
     InertialSequenceDataset,
     collate_fn,
+    compute_acc_zscore_stats,
 )
 
-# Default paths
-CHECKPOINT_PATH = "models/deep_learning_models/Multistream_CNN_acc_only.pth"
-OUTPUT_DIR = "analysis_results/multistream_cnn_conv2d"
+# Presets: checkpoint path, analysis output folder, and plot/report titles.
+MODEL_PROFILES = {
+    "acc": {
+        "key": "acc",
+        "checkpoint": "models/deep_learning_models/Multistream_CNN_acc_only.pth",
+        "output_dir": os.path.join("analysis_results", "Multistream_CNN_acc_only"),
+        "plot_title": "Multistream CNN (acc-only)",
+    },
+    "thermal": {
+        "key": "thermal",
+        "checkpoint": "models/deep_learning_models/Multistream_CNN_thermal_only.pth",
+        "output_dir": os.path.join("analysis_results", "Multistream_CNN_thermal_only"),
+        "plot_title": "Multistream CNN (thermal)",
+    },
+}
+
+# Set in main() from the chosen profile; all saved files go under OUTPUT_DIR.
+OUTPUT_DIR = MODEL_PROFILES["acc"]["output_dir"]
+PROFILE = None
+
+
+def plot_title():
+    """Human-readable model label for figures and report headers."""
+    return PROFILE["plot_title"] if PROFILE else "Multistream CNN"
+
+
+def prompt_model_profile():
+    print("\nWhich model do you want to analyze?")
+    print("  1 — Accelerometer (Multistream_CNN_acc_only.pth)")
+    print("  2 — Thermal / thermopile (Multistream_CNN_thermal_only.pth)")
+    while True:
+        raw = input("Enter 1 or 2: ").strip()
+        if raw == "1":
+            return MODEL_PROFILES["acc"]
+        if raw == "2":
+            return MODEL_PROFILES["thermal"]
+        print("Invalid choice. Please enter 1 or 2.")
+
+
+def resolve_model_profile():
+    """Interactive menu, or CLI: python analyze_multistream_cnn.py [1|2|acc|thermal]."""
+    if len(sys.argv) > 1:
+        a = sys.argv[1].lower().strip()
+        if a in ("1", "acc", "accelerometer", "imu"):
+            return MODEL_PROFILES["acc"]
+        if a in ("2", "thermal", "thm", "temperature"):
+            return MODEL_PROFILES["thermal"]
+        print(f"Unknown argument {sys.argv[1]!r}; expected 1, 2, acc, or thermal. Using interactive prompt.\n")
+    return prompt_model_profile()
+
+
+def out_path(*parts):
+    """Path under OUTPUT_DIR; use this for every saved analysis file."""
+    return os.path.join(OUTPUT_DIR, *parts)
 
 
 def ensure_output_dir():
     os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 
-def load_model_and_data(checkpoint_path=CHECKPOINT_PATH):
+def load_model_and_data(profile, checkpoint_path=None):
     """Load checkpoint (full or state_dict only), rebuild split and label encoding."""
+    checkpoint_path = checkpoint_path or profile["checkpoint"]
     train_df = load_train_data()
     train_df["is_bfrb"] = train_df["gesture"].isin(BFRB_GESTURES)
     trainset_df, valset_df, testset_df = final_robust_split(train_df)
@@ -57,27 +113,93 @@ def load_model_and_data(checkpoint_path=CHECKPOINT_PATH):
     num_classes = len(le.classes_)
     target_names = le.classes_
 
-    # Load checkpoint
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     ckpt = torch.load(checkpoint_path, map_location=device, weights_only=False)
 
+    if profile["key"] == "acc":
+        sd = ckpt["model_state_dict"] if "model_state_dict" in ckpt else ckpt
+        n_cls = ckpt["num_classes"] if isinstance(ckpt, dict) and "model_state_dict" in ckpt else num_classes
+        if isinstance(ckpt, dict) and "input_zscore_mean" in ckpt and "input_zscore_std" in ckpt:
+            m = np.asarray(ckpt["input_zscore_mean"], dtype=np.float32)
+            s = np.asarray(ckpt["input_zscore_std"], dtype=np.float32)
+        elif "norm.mean" in sd:
+            m = sd["norm.mean"].detach().cpu().numpy()
+            s = sd["norm.std"].detach().cpu().numpy()
+        else:
+            m, s = compute_acc_zscore_stats(trainset_df)
+        model = MultistreamCNNInertialNet(num_classes=n_cls, norm_mean=m, norm_std=s)
+        model.load_state_dict(sd, strict="norm.mean" in sd)
+        model = model.to(device)
+        model.eval()
+
+        test_ds = InertialSequenceDataset(testset_df)
+        test_loader = DataLoader(
+            test_ds,
+            batch_size=16,
+            shuffle=False,
+            collate_fn=collate_fn,
+        )
+        return model, test_loader, target_names, num_classes, le
+
+    # Thermal: same split + drop sequences with no valid thermal data (matches training script).
+    from train_multistream_cnn_thermal import (
+        get_thm_columns,
+        drop_sequences_with_no_thermal,
+        compute_train_thermal_zscore_params,
+        MultistreamCNNThermalNet,
+        ThermalSequenceDataset,
+        make_collate_fn,
+        DROPOUT_P as THERMAL_DROPOUT_DEFAULT,
+    )
+
+    thm_cols = get_thm_columns(train_df)
+    if not thm_cols:
+        raise ValueError("No thm_* columns in train.csv; cannot evaluate thermal model.")
+
+    trainset_df, _ = drop_sequences_with_no_thermal(trainset_df, thm_cols)
+    valset_df, _ = drop_sequences_with_no_thermal(valset_df, thm_cols)
+    testset_df, _ = drop_sequences_with_no_thermal(testset_df, thm_cols)
+
+    if len(testset_df) == 0:
+        raise RuntimeError("Test split has no rows after dropping sequences without thermal data.")
+
+    num_classes_ckpt = ckpt.get("num_classes", num_classes)
+    thm_cols_ckpt = ckpt.get("thm_cols")
+    if thm_cols_ckpt:
+        thm_cols = list(thm_cols_ckpt)
+
+    thm_mean = ckpt.get("thm_mean")
+    thm_std = ckpt.get("thm_std")
+    if thm_mean is None or thm_std is None:
+        train_mean_raw, train_std_raw = compute_train_thermal_zscore_params(trainset_df, thm_cols)
+    else:
+        train_mean_raw = np.asarray(thm_mean, dtype=np.float64)
+        train_std_raw = np.asarray(thm_std, dtype=np.float64)
+
+    dropout_p = ckpt.get("dropout_p", THERMAL_DROPOUT_DEFAULT)
+
+    model = MultistreamCNNThermalNet(
+        num_classes=num_classes_ckpt,
+        mean=train_mean_raw,
+        std=train_std_raw,
+        dropout_p=float(dropout_p),
+    )
     if "model_state_dict" in ckpt:
-        model = MultistreamCNNInertialNet(num_classes=ckpt["num_classes"])
         model.load_state_dict(ckpt["model_state_dict"])
     else:
-        model = MultistreamCNNInertialNet(num_classes=num_classes)
         model.load_state_dict(ckpt)
     model = model.to(device)
     model.eval()
 
-    test_ds = InertialSequenceDataset(testset_df)
+    collate_thermal = make_collate_fn(train_mean_raw)
+    test_ds = ThermalSequenceDataset(testset_df, thm_cols, train_mean_raw)
     test_loader = DataLoader(
         test_ds,
         batch_size=16,
         shuffle=False,
-        collate_fn=collate_fn,
+        collate_fn=collate_thermal,
     )
-    return model, test_loader, target_names, num_classes, le
+    return model, test_loader, target_names, num_classes_ckpt, le
 
 
 def run_evaluation(model, test_loader, device):
@@ -104,9 +226,9 @@ def run_evaluation(model, test_loader, device):
 def analysis_classification_report_and_cm(all_labels, all_preds, target_names):
     ensure_output_dir()
     report = classification_report(all_labels, all_preds, target_names=target_names)
-    path_txt = os.path.join(OUTPUT_DIR, "classification_report.txt")
+    path_txt = out_path("classification_report.txt")
     with open(path_txt, "w") as f:
-        f.write("Test Set Performance Analysis (Multistream CNN acc-only)\n")
+        f.write(f"Test Set Performance Analysis ({plot_title()})\n")
         f.write("=" * 60 + "\n\n")
         f.write(report)
     print(f"Saved: {path_txt}")
@@ -121,10 +243,10 @@ def analysis_classification_report_and_cm(all_labels, all_preds, target_names):
         yticklabels=target_names,
         cmap="viridis",
     )
-    plt.title("Confusion Matrix: Multistream CNN (acc-only) — BFRB vs. Non-BFRB Gestures")
+    plt.title(f"Confusion Matrix: {plot_title()} — BFRB vs. Non-BFRB Gestures")
     plt.ylabel("True Gesture")
     plt.xlabel("Predicted Gesture")
-    path_fig = os.path.join(OUTPUT_DIR, "confusion_matrix.png")
+    path_fig = out_path("confusion_matrix.png")
     plt.savefig(path_fig, dpi=150, bbox_inches="tight")
     plt.close()
     print(f"Saved: {path_fig}")
@@ -177,13 +299,13 @@ def analysis_misclassifications(cm, target_names):
     lines.append("- Specific BFRB vs. non-BFRB confusions")
 
     text = "\n".join(lines)
-    path_txt = os.path.join(OUTPUT_DIR, "misclassifications_analysis.txt")
+    path_txt = out_path("misclassifications_analysis.txt")
     with open(path_txt, "w") as f:
         f.write(text)
     print(f"Saved: {path_txt}")
 
     df_mc = pd.DataFrame(misclassifications)
-    path_csv = os.path.join(OUTPUT_DIR, "misclassifications.csv")
+    path_csv = out_path("misclassifications.csv")
     df_mc.to_csv(path_csv, index=False)
     print(f"Saved: {path_csv}")
     return misclassifications
@@ -205,7 +327,7 @@ def analysis_per_class_metrics(all_labels, all_preds, target_names):
         "Support": support,
     }).sort_values("F1", ascending=True)
 
-    path_csv = os.path.join(OUTPUT_DIR, "per_class_metrics.csv")
+    path_csv = out_path("per_class_metrics.csv")
     metrics_df.to_csv(path_csv, index=False)
     print(f"Saved: {path_csv}")
 
@@ -220,16 +342,16 @@ def analysis_per_class_metrics(all_labels, all_preds, target_names):
     ax.set_xlim(0, 1.05)
     ax.axvline(0.5, color="gray", linestyle="--", linewidth=0.8, alpha=0.6)
     ax.set_xlabel("Score")
-    ax.set_title("Per-Class Precision, Recall & F1 (sorted by F1) — Multistream CNN")
+    ax.set_title(f"Per-Class Precision, Recall & F1 (sorted by F1) — {plot_title()}")
     ax.legend()
     plt.tight_layout()
-    path_fig = os.path.join(OUTPUT_DIR, "per_class_precision_recall_f1.png")
+    path_fig = out_path("per_class_precision_recall_f1.png")
     plt.savefig(path_fig, dpi=150, bbox_inches="tight")
     plt.close()
     print(f"Saved: {path_fig}")
 
     low_f1 = metrics_df[metrics_df["F1"] < 0.5][["Class", "Precision", "Recall", "F1", "Support"]]
-    path_low = os.path.join(OUTPUT_DIR, "classes_f1_below_0.5.txt")
+    path_low = out_path("classes_f1_below_0.5.txt")
     with open(path_low, "w") as f:
         f.write("Classes with F1 < 0.5:\n")
         f.write(low_f1.to_string(index=False))
@@ -268,7 +390,7 @@ def analysis_confidence(all_outputs, all_labels, all_preds, target_names):
     axes[1].legend()
     axes[1].grid(alpha=0.3)
     plt.tight_layout()
-    path_fig = os.path.join(OUTPUT_DIR, "confidence_analysis.png")
+    path_fig = out_path("confidence_analysis.png")
     plt.savefig(path_fig, dpi=150, bbox_inches="tight")
     plt.close()
     print(f"Saved: {path_fig}")
@@ -282,7 +404,7 @@ def analysis_confidence(all_outputs, all_labels, all_preds, target_names):
         f"Fraction of wrong predictions with confidence > 0.9: {frac_wrong_high_conf:.1%}  (high = model is confidently wrong)",
     ]
     text = "\n".join(lines)
-    path_txt = os.path.join(OUTPUT_DIR, "confidence_summary.txt")
+    path_txt = out_path("confidence_summary.txt")
     with open(path_txt, "w") as f:
         f.write(text)
     print(f"Saved: {path_txt}")
@@ -318,7 +440,7 @@ def analysis_region_accuracy(all_labels, all_preds, target_names):
     region_acc["accuracy"] = region_acc["correct"] / region_acc["total"]
     region_acc = region_acc.sort_values("accuracy")
 
-    path_csv = os.path.join(OUTPUT_DIR, "region_accuracy.csv")
+    path_csv = out_path("region_accuracy.csv")
     region_acc.to_csv(path_csv)
     print(f"Saved: {path_csv}")
 
@@ -328,16 +450,16 @@ def analysis_region_accuracy(all_labels, all_preds, target_names):
     ax.axvline(0.5, color="gray", linestyle="--", linewidth=0.8)
     ax.set_xlim(0, 1.05)
     ax.set_xlabel("Accuracy")
-    ax.set_title("Accuracy Grouped by Body Region — Multistream CNN")
+    ax.set_title(f"Accuracy Grouped by Body Region — {plot_title()}")
     for i, (region, row) in enumerate(region_acc.iterrows()):
         ax.text(row["accuracy"] + 0.01, i, f"{row['accuracy']:.0%}  (n={int(row['total'])})", va="center", fontsize=8)
     plt.tight_layout()
-    path_fig = os.path.join(OUTPUT_DIR, "region_accuracy.png")
+    path_fig = out_path("region_accuracy.png")
     plt.savefig(path_fig, dpi=150, bbox_inches="tight")
     plt.close()
     print(f"Saved: {path_fig}")
 
-    path_txt = os.path.join(OUTPUT_DIR, "region_accuracy_table.txt")
+    path_txt = out_path("region_accuracy_table.txt")
     with open(path_txt, "w") as f:
         f.write("Per-region accuracy table:\n")
         f.write(region_acc[["correct", "total", "accuracy"]].to_string())
@@ -397,9 +519,9 @@ def analysis_roc_curves(all_labels, all_probs, target_names):
     for j in range(n_classes + 1, len(axes)):
         axes[j].set_visible(False)
 
-    plt.suptitle("One-vs-Rest ROC Curves per Gesture Class — Multistream CNN", fontsize=12, y=1.01)
+    plt.suptitle(f"One-vs-Rest ROC Curves per Gesture Class — {plot_title()}", fontsize=12, y=1.01)
     plt.tight_layout()
-    path_fig = os.path.join(OUTPUT_DIR, "roc_curves.png")
+    path_fig = out_path("roc_curves.png")
     plt.savefig(path_fig, dpi=150, bbox_inches="tight")
     plt.close()
     print(f"Saved: {path_fig}")
@@ -408,11 +530,11 @@ def analysis_roc_curves(all_labels, all_probs, target_names):
         "Class": target_names,
         "AUC": [roc_auc[i] for i in range(n_classes)],
     }).sort_values("AUC")
-    path_csv = os.path.join(OUTPUT_DIR, "roc_auc_per_class.csv")
+    path_csv = out_path("roc_auc_per_class.csv")
     auc_summary.to_csv(path_csv, index=False)
     print(f"Saved: {path_csv}")
 
-    path_txt = os.path.join(OUTPUT_DIR, "roc_auc_summary.txt")
+    path_txt = out_path("roc_auc_summary.txt")
     with open(path_txt, "w") as f:
         f.write(f"Macro-average AUC: {macro_auc:.4f}\n")
         f.write("\nPer-class AUC (lowest first):\n")
@@ -427,21 +549,31 @@ def analysis_roc_curves(all_labels, all_probs, target_names):
 def save_predictions(all_labels, all_preds, all_outputs, all_probs):
     ensure_output_dir()
     np.savez(
-        os.path.join(OUTPUT_DIR, "predictions.npz"),
+        out_path("predictions.npz"),
         all_labels=np.array(all_labels),
         all_preds=np.array(all_preds),
         all_outputs=all_outputs,
         all_probs=all_probs,
     )
-    print(f"Saved: {os.path.join(OUTPUT_DIR, 'predictions.npz')}")
+    print(f"Saved: {out_path('predictions.npz')}")
 
 
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
-def main(checkpoint_path=CHECKPOINT_PATH):
+def main(checkpoint_path=None, profile=None):
+    global OUTPUT_DIR, PROFILE
+    if profile is None:
+        profile = resolve_model_profile()
+    PROFILE = profile
+    OUTPUT_DIR = profile["output_dir"]
+
+    cp = checkpoint_path if checkpoint_path is not None else profile["checkpoint"]
+    print(f"Analyzing: {profile['plot_title']}")
+    print(f"Checkpoint: {cp}")
+    print(f"Output dir: {OUTPUT_DIR}")
     print("Loading model and test data...")
-    model, test_loader, target_names, num_classes, le = load_model_and_data(checkpoint_path)
+    model, test_loader, target_names, num_classes, le = load_model_and_data(profile, cp)
     device = next(model.parameters()).device
 
     print("Running evaluation...")

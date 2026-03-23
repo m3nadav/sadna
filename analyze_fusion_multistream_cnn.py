@@ -71,7 +71,7 @@ def load_model_and_data(checkpoint_path=FUSION_CHECKPOINT_PATH):
     ckpt = torch.load(checkpoint_path, map_location=device, weights_only=False)
 
     # Build fusion model: frozen acc + rot backbones + fusion classifier
-    acc_backbone = make_acc_feature_extractor(num_classes, ACC_CHECKPOINT_PATH, device)
+    acc_backbone = make_acc_feature_extractor(num_classes, ACC_CHECKPOINT_PATH, device, trainset_df)
     rot_backbone = make_rot_feature_extractor(num_classes, ROT_CHECKPOINT_PATH, device)
     model = FusionMultistreamCNN(acc_backbone, rot_backbone, num_classes=num_classes, hidden_dim=64)
     if "model_state_dict" in ckpt:

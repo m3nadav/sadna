@@ -48,6 +48,7 @@ from train_multistream_cnn import (
     apply_label_encoding,
     BFRB_GESTURES,
     MultistreamCNNInertialNet,
+    compute_acc_zscore_stats,
 )
 from train_multistream_cnn_rot import MultistreamCNNRotNet
 from train_fusion_multistream_cnn import FusionMultistreamCNN
@@ -109,8 +110,23 @@ class FusionPartialUnfreeze128(nn.Module):
         return torch.cat([acc_feat, rot_feat], dim=1)
 
 
-def make_fusion_finetune_128(num_classes, checkpoint_path, device):
-    acc_backbone = MultistreamCNNInertialNet(num_classes=num_classes)
+def make_fusion_finetune_128(num_classes, checkpoint_path, device, trainset_df=None):
+    ckpt = torch.load(checkpoint_path, map_location=device, weights_only=False)
+    state = ckpt["model_state_dict"] if isinstance(ckpt, dict) and "model_state_dict" in ckpt else ckpt
+    acc_sd = {k[len("acc_backbone."):]: v for k, v in state.items() if k.startswith("acc_backbone.")}
+    if isinstance(ckpt, dict) and "input_zscore_mean" in ckpt and "input_zscore_std" in ckpt:
+        m = np.asarray(ckpt["input_zscore_mean"], dtype=np.float32)
+        s = np.asarray(ckpt["input_zscore_std"], dtype=np.float32)
+    elif "norm.mean" in acc_sd:
+        m = acc_sd["norm.mean"].detach().cpu().numpy()
+        s = acc_sd["norm.std"].detach().cpu().numpy()
+    elif trainset_df is not None:
+        m, s = compute_acc_zscore_stats(trainset_df)
+    else:
+        raise ValueError(
+            "Fusion checkpoint missing input_zscore_* or acc_backbone norm stats; pass trainset_df or retrain."
+        )
+    acc_backbone = MultistreamCNNInertialNet(num_classes=num_classes, norm_mean=m, norm_std=s)
     acc_backbone.classifier = nn.Sequential(
         acc_backbone.classifier[0],
         acc_backbone.classifier[1],
@@ -125,8 +141,6 @@ def make_fusion_finetune_128(num_classes, checkpoint_path, device):
         rot_backbone.classifier[3],
     )
     fusion = FusionMultistreamCNN(acc_backbone, rot_backbone, num_classes=num_classes, hidden_dim=64)
-    ckpt = torch.load(checkpoint_path, map_location=device, weights_only=False)
-    state = ckpt["model_state_dict"] if isinstance(ckpt, dict) and "model_state_dict" in ckpt else ckpt
     fusion.load_state_dict(state)
     return FusionPartialUnfreeze128(fusion).to(device)
 
@@ -354,7 +368,7 @@ def main():
     print(f"Using device: {device}")
 
     print(f"Loading fusion backbone (partial unfreeze) from {FUSION_CHECKPOINT_PATH}...")
-    fusion_128 = make_fusion_finetune_128(num_classes, FUSION_CHECKPOINT_PATH, device)
+    fusion_128 = make_fusion_finetune_128(num_classes, FUSION_CHECKPOINT_PATH, device, trainset_df)
     print(f"Loading ToF backbone (partial unfreeze) from {TOF_CHECKPOINT_PATH}...")
     tof_feat = make_tof_finetune_extractor(num_classes, TOF_CHECKPOINT_PATH, device)
 

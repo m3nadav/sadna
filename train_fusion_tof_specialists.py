@@ -31,7 +31,12 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
 
-from train_multistream_cnn import load_train_data, final_robust_split, apply_label_encoding, BFRB_GESTURES
+from train_multistream_cnn import (
+    load_train_data,
+    final_robust_split,
+    apply_label_encoding,
+    BFRB_GESTURES,
+)
 from train_tof_cnn import get_tof_columns
 from train_fusion_tof_multistream_cnn import AccRotToFSequenceDataset, collate_acc_rot_tof
 from train_fusion_tof_multistream_cnn_finetune import (
@@ -149,7 +154,16 @@ class SpecialistMLP(nn.Module):
 
 
 def load_frozen_finetune_model(num_classes: int, device: torch.device) -> ToFFusionMultistreamCNNDeepFinetune:
-    fusion_128 = make_fusion_finetune_128(num_classes, FUSION_CHECKPOINT_PATH, device)
+    train_df = load_train_data()
+    train_df["is_bfrb"] = train_df["gesture"].isin(BFRB_GESTURES)
+    trainset_df, valset_df, testset_df = final_robust_split(train_df)
+    trainset_df = trainset_df.reset_index(drop=True)
+    valset_df = valset_df.reset_index(drop=True)
+    testset_df = testset_df.reset_index(drop=True)
+    train_df, trainset_df, valset_df, testset_df, _, _ = apply_label_encoding(
+        train_df, trainset_df, valset_df, testset_df
+    )
+    fusion_128 = make_fusion_finetune_128(num_classes, FUSION_CHECKPOINT_PATH, device, trainset_df)
     tof_feat = make_tof_finetune_extractor(num_classes, TOF_CHECKPOINT_PATH, device)
     model = ToFFusionMultistreamCNNDeepFinetune(
         fusion_128,

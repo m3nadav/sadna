@@ -22,6 +22,20 @@ RANDOM_STATE = 42
 np.random.seed(RANDOM_STATE)
 torch.manual_seed(RANDOM_STATE)
 
+ACC_COLS = ["acc_x", "acc_y", "acc_z"]
+ZSCORE_EPS = 1e-6
+
+
+def compute_acc_zscore_stats(trainset_df, cols=None):
+    """Per-channel mean and population std (ddof=0) on all training rows."""
+    if cols is None:
+        cols = ACC_COLS
+    sub = trainset_df[cols]
+    mean = sub.mean(axis=0).to_numpy(dtype=np.float32)
+    std = sub.std(axis=0, ddof=0).to_numpy(dtype=np.float32)
+    std = np.maximum(std, ZSCORE_EPS)
+    return mean, std
+
 
 # ---------------------------------------------------------------------------
 # Data loading (same as Project.ipynb)
@@ -100,27 +114,32 @@ def apply_label_encoding(train_df, trainset_df, valset_df, testset_df):
 
 
 # ---------------------------------------------------------------------------
-# Model: MinMaxNormalize + HeliosInertialNet (same as Project.ipynb)
+# Model: Z-score (train stats) + HeliosInertialNet (same as Project.ipynb)
 # ---------------------------------------------------------------------------
-class MinMaxNormalize(nn.Module):
-    """Custom layer to scale inputs to [0, 1] based on provided bounds."""
+class ZScoreNormalize(nn.Module):
+    """Per-channel z-score; mean/std from training data, stored as buffers for checkpointing."""
 
-    def __init__(self, min_val, max_val):
-        super(MinMaxNormalize, self).__init__()
-        self.min_val = min_val
-        self.max_val = max_val
+    def __init__(self, mean, std, eps=ZSCORE_EPS):
+        super().__init__()
+        mean_t = torch.as_tensor(mean, dtype=torch.float32).reshape(-1)
+        std_t = torch.as_tensor(std, dtype=torch.float32).reshape(-1).clamp_min(eps)
+        self.register_buffer("mean", mean_t)
+        self.register_buffer("std", std_t)
 
     def forward(self, x):
-        x = torch.clamp(x, self.min_val, self.max_val)
-        return (x - self.min_val) / (self.max_val - self.min_val + 1e-6)
+        m = self.mean.view(1, -1, 1)
+        s = self.std.view(1, -1, 1)
+        return (x - m) / s
 
 
 class HeliosInertialNet(nn.Module):
     """Initial model architecture from Project.ipynb (acc-only, Conv + LSTM + FC)."""
 
-    def __init__(self, num_classes=18):
+    def __init__(self, num_classes=18, norm_mean=None, norm_std=None):
         super(HeliosInertialNet, self).__init__()
-        self.input_norm = MinMaxNormalize(-20.0, 20.0)
+        if norm_mean is None or norm_std is None:
+            raise ValueError("norm_mean and norm_std are required (from compute_acc_zscore_stats on train split)")
+        self.input_norm = ZScoreNormalize(norm_mean, norm_std)
         # (B,3,T) -> (B,1,3,T): 2D conv over acc axes x time, then (B,64,T) for remaining 1D stack
         self.conv1 = nn.Sequential(
             nn.Conv2d(1, 64, kernel_size=(3, 7), padding=(0, 3)),
@@ -241,6 +260,10 @@ def save_model_and_metadata(
         "val_sequence_ids": val_seq_ids,
         "test_sequence_ids": test_seq_ids,
     }
+    # Explicit z-score stats (also in model_state_dict as input_norm.mean / input_norm.std)
+    if hasattr(model, "input_norm") and hasattr(model.input_norm, "mean"):
+        checkpoint["input_zscore_mean"] = model.input_norm.mean.detach().cpu().numpy()
+        checkpoint["input_zscore_std"] = model.input_norm.std.detach().cpu().numpy()
     torch.save(checkpoint, filepath)
     print(f"Model checkpoint saved to {filepath}")
 
@@ -378,7 +401,8 @@ def main():
     # 6. Model, criterion, optimizer, scheduler (same as Project.ipynb)
     device = torch.device("cpu")
     print(f"Using device: {device}")
-    model = HeliosInertialNet(num_classes=num_classes)
+    acc_mean, acc_std = compute_acc_zscore_stats(trainset_df)
+    model = HeliosInertialNet(num_classes=num_classes, norm_mean=acc_mean, norm_std=acc_std)
     model = model.to(device)
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.AdamW(model.parameters(), lr=0.001, weight_decay=1e-4)
@@ -388,7 +412,7 @@ def main():
 
     # 7. Train (saves best state_dict to save_path during training)
     os.makedirs("models/deep_learning_models", exist_ok=True)
-    save_path = "models/deep_learning_models/helios_inertial_net_2d_conv.pth"
+    save_path = "models/deep_learning_models/helios_inertial_net_2d_conv_z_score_normalized.pth"
     history = train_model(
         model,
         train_loader,

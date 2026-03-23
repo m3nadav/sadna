@@ -122,7 +122,7 @@ def load_model_and_data(
             f"Building finetune model (deep head + partial-unfreeze backbones) from "
             f"{FUSION_CHECKPOINT_PATH} + {TOF_CHECKPOINT_PATH}, weights from {checkpoint_path}..."
         )
-        fusion_128 = make_fusion_finetune_128(num_classes, FUSION_CHECKPOINT_PATH, device)
+        fusion_128 = make_fusion_finetune_128(num_classes, FUSION_CHECKPOINT_PATH, device, trainset_df)
         tof_feat = make_tof_finetune_extractor(num_classes, TOF_CHECKPOINT_PATH, device)
         model = ToFFusionMultistreamCNNDeepFinetune(
             fusion_128,
@@ -133,7 +133,7 @@ def load_model_and_data(
         )
     else:
         print(f"Building baseline model from {FUSION_CHECKPOINT_PATH} and {TOF_CHECKPOINT_PATH}...")
-        fusion_128 = make_fusion_frozen_128(num_classes, FUSION_CHECKPOINT_PATH, device)
+        fusion_128 = make_fusion_frozen_128(num_classes, FUSION_CHECKPOINT_PATH, device, trainset_df)
         tof_feat = make_tof_feature_extractor(num_classes, TOF_CHECKPOINT_PATH, device)
         model = ToFFusionMultistreamCNN(fusion_128, tof_feat, num_classes=num_classes, hidden_dim=64)
 
