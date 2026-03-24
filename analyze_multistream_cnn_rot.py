@@ -22,6 +22,8 @@ from sklearn.metrics import (
 )
 from sklearn.preprocessing import label_binarize
 
+from utils import ROT_COLS, filter_sequences_by_sensor_validity
+
 # Reuse data loading, split, model and dataset from rotation training script
 from train_multistream_cnn_rot import (
     RANDOM_STATE,
@@ -32,7 +34,6 @@ from train_multistream_cnn_rot import (
     MultistreamCNNRotNet,
     RotSequenceDataset,
     collate_fn,
-    drop_sequences_with_missing_quaternions,
 )
 
 # Default paths
@@ -58,7 +59,7 @@ def load_model_and_data(checkpoint_path=CHECKPOINT_PATH):
     )
 
     # Same as training: only evaluate on sequences with complete quaternion data
-    testset_df, _ = drop_sequences_with_missing_quaternions(testset_df)
+    testset_df, _ = filter_sequences_by_sensor_validity(testset_df, rot_cols=ROT_COLS)
     print(f"Test set after dropping missing quaternions: {len(testset_df)} rows, {testset_df['sequence_id'].nunique()} sequences")
 
     num_classes = len(le.classes_)

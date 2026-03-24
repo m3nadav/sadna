@@ -1,22 +1,22 @@
-Macro-average AUC: 0.9246
+Macro-average AUC: 0.6618
 
 Per-class AUC (lowest first):
                                      Class      AUC
-                       Eyebrow - pull hair 0.830254
-                        Cheek - pinch skin 0.836775
-                            Neck - scratch 0.847089
-                       Eyelash - pull hair 0.853016
-                         Neck - pinch skin 0.855094
-                  Forehead - pull hairline 0.861550
-                        Forehead - scratch 0.871707
-                     Above ear - pull hair 0.879851
-                 Pull air toward your face 0.951896
-                         Write name in air 0.960164
-                         Write name on leg 0.973849
-                     Scratch knee/leg skin 0.981695
-                             Text on phone 0.982172
-                       Pinch knee/leg skin 0.983194
-                                Wave hello 0.983456
-Feel around in tray and pull out an object 0.990795
-                     Drink from bottle/cup 0.993096
-                            Glasses on/off 0.998675
+                        Forehead - scratch 0.486968
+                 Pull air toward your face 0.505222
+                         Write name in air 0.508790
+                            Neck - scratch 0.514034
+                  Forehead - pull hairline 0.560385
+                     Drink from bottle/cup 0.566423
+                       Eyebrow - pull hair 0.571850
+                             Text on phone 0.577406
+                       Eyelash - pull hair 0.594659
+                     Above ear - pull hair 0.596041
+                        Cheek - pinch skin 0.610678
+                         Neck - pinch skin 0.613257
+Feel around in tray and pull out an object 0.714017
+                                Wave hello 0.866191
+                     Scratch knee/leg skin 0.897245
+                            Glasses on/off 0.899268
+                       Pinch knee/leg skin 0.905614
+                         Write name on leg 0.915411

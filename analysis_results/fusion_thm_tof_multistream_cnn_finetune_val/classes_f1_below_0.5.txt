@@ -1,0 +1,6 @@
+Classes with F1 < 0.5:
+                Class  Precision   Recall       F1  Support
+  Pinch knee/leg skin   0.090909 0.041667 0.057143       24
+Scratch knee/leg skin   0.285714 0.416667 0.338983       24
+  Eyebrow - pull hair   0.523077 0.377778 0.438710       90
+    Write name on leg   0.382353 0.541667 0.448276       24

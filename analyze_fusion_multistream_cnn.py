@@ -1,7 +1,6 @@
 """
-Analyze Fusion Multistream CNN model: run the same evaluations as for the acc-only model
-and save all analysis results (figures, CSV, text) to analysis_results/fusion_multistream_cnn.
-Test set uses only sequences with complete quaternion data (same as fusion training).
+Analyze joint acc+rot Fusion Multistream CNN: same evaluations as the acc-only analysis pipeline.
+Test set uses all sequences (same as joint training); per-timestep quat mask handles invalid rows.
 """
 import os
 import numpy as np
@@ -22,24 +21,21 @@ from sklearn.metrics import (
 )
 from sklearn.preprocessing import label_binarize
 
-# Reuse data loading, split, model and dataset from fusion training script
-from train_fusion_multistream_cnn import (
-    load_train_data,
-    final_robust_split,
-    apply_label_encoding,
+from utils import (
     BFRB_GESTURES,
-    drop_sequences_with_missing_quaternions,
-    FusionMultistreamCNN,
-    make_acc_feature_extractor,
-    make_rot_feature_extractor,
-    AccRotSequenceDataset,
-    collate_fn,
-    ACC_CHECKPOINT_PATH,
-    ROT_CHECKPOINT_PATH,
+    apply_label_encoding,
+    compute_acc_zscore_stats,
+    final_robust_split,
+    load_train_data,
 )
 
-# Default paths
-FUSION_CHECKPOINT_PATH = "models/deep_learning_models/Fusion_Multistream_CNN.pth"
+from train_fusion_multistream_cnn import (
+    JointAccRotMultistreamNet,
+    AccRotSequenceDataset,
+    collate_fn,
+    SAVE_PATH as FUSION_CHECKPOINT_PATH,
+)
+
 OUTPUT_DIR = "analysis_results/fusion_multistream_cnn_conv2d"
 
 
@@ -48,7 +44,7 @@ def ensure_output_dir():
 
 
 def load_model_and_data(checkpoint_path=FUSION_CHECKPOINT_PATH):
-    """Load fusion checkpoint; rebuild split, drop test sequences missing quaternions, build model."""
+    """Load joint fusion checkpoint; rebuild split (all test sequences); build model."""
     train_df = load_train_data()
     train_df["is_bfrb"] = train_df["gesture"].isin(BFRB_GESTURES)
     trainset_df, valset_df, testset_df = final_robust_split(train_df)
@@ -60,24 +56,29 @@ def load_model_and_data(checkpoint_path=FUSION_CHECKPOINT_PATH):
         train_df, trainset_df, valset_df, testset_df
     )
 
-    # Same as fusion training: only evaluate on sequences with complete quaternion data
-    testset_df, _ = drop_sequences_with_missing_quaternions(testset_df)
-    print(f"Test set after dropping missing quaternions: {len(testset_df)} rows, {testset_df['sequence_id'].nunique()} sequences")
+    print(
+        f"Test set (all sequences, same as joint training): {len(testset_df)} rows, "
+        f"{testset_df['sequence_id'].nunique()} sequences"
+    )
 
     num_classes = len(le.classes_)
     target_names = le.classes_
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     ckpt = torch.load(checkpoint_path, map_location=device, weights_only=False)
-
-    # Build fusion model: frozen acc + rot backbones + fusion classifier
-    acc_backbone = make_acc_feature_extractor(num_classes, ACC_CHECKPOINT_PATH, device, trainset_df)
-    rot_backbone = make_rot_feature_extractor(num_classes, ROT_CHECKPOINT_PATH, device)
-    model = FusionMultistreamCNN(acc_backbone, rot_backbone, num_classes=num_classes, hidden_dim=64)
-    if "model_state_dict" in ckpt:
-        model.load_state_dict(ckpt["model_state_dict"])
+    state = ckpt["model_state_dict"] if isinstance(ckpt, dict) and "model_state_dict" in ckpt else ckpt
+    if isinstance(ckpt, dict) and "input_zscore_mean" in ckpt and "input_zscore_std" in ckpt:
+        m = np.asarray(ckpt["input_zscore_mean"], dtype=np.float32)
+        s = np.asarray(ckpt["input_zscore_std"], dtype=np.float32)
+    elif "acc_zscore.mean" in state:
+        m = state["acc_zscore.mean"].detach().cpu().numpy()
+        s = state["acc_zscore.std"].detach().cpu().numpy()
     else:
-        model.load_state_dict(ckpt)
+        m, s = compute_acc_zscore_stats(trainset_df)
+        print("Checkpoint missing input z-score metadata; using train-split acc stats.")
+
+    model = JointAccRotMultistreamNet(num_classes=num_classes, norm_mean=m, norm_std=s)
+    model.load_state_dict(state, strict=True)
     model = model.to(device)
     model.eval()
 
@@ -98,10 +99,11 @@ def run_evaluation(model, test_loader, device):
     all_outputs = []
 
     with torch.no_grad():
-        for acc, rot, labels in test_loader:
+        for acc, rot, rot_mask, labels in test_loader:
             acc = acc.to(device)
             rot = rot.to(device)
-            outputs = model(acc, rot)
+            rot_mask = rot_mask.to(device)
+            outputs = model(acc, rot, rot_mask)
             all_outputs.extend(outputs.cpu().numpy())
             _, predicted = torch.max(outputs.data, 1)
             all_preds.extend(predicted.cpu().numpy())

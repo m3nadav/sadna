@@ -1,13 +1,20 @@
 Classes with F1 < 0.5:
-                   Class  Precision   Recall       F1  Support
-     Eyebrow - pull hair   0.260870 0.125000 0.169014       96
-          Neck - scratch   0.400000 0.145833 0.213740       96
-Forehead - pull hairline   0.235849 0.260417 0.247525       96
-       Write name on leg   0.228571 0.333333 0.271186       24
-   Scratch knee/leg skin   0.454545 0.208333 0.285714       24
-     Eyelash - pull hair   0.364865 0.281250 0.317647       96
-      Cheek - pinch skin   0.295082 0.375000 0.330275       96
-       Neck - pinch skin   0.311475 0.395833 0.348624       96
-      Forehead - scratch   0.345588 0.489583 0.405172       96
-     Pinch knee/leg skin   0.440000 0.458333 0.448980       24
-   Above ear - pull hair   0.404580 0.552083 0.466960       96
+                                     Class  Precision   Recall       F1  Support
+                        Cheek - pinch skin   0.000000 0.000000 0.000000       96
+Feel around in tray and pull out an object   0.000000 0.000000 0.000000       24
+                  Forehead - pull hairline   0.000000 0.000000 0.000000       96
+                         Write name in air   0.000000 0.000000 0.000000       70
+                 Pull air toward your face   0.000000 0.000000 0.000000       70
+                       Eyebrow - pull hair   0.142857 0.010417 0.019417       96
+                        Forehead - scratch   0.500000 0.010417 0.020408       96
+                     Above ear - pull hair   0.074074 0.020833 0.032520       96
+                       Eyelash - pull hair   0.105263 0.020833 0.034783       96
+                     Drink from bottle/cup   0.052632 0.083333 0.064516       24
+                       Pinch knee/leg skin   1.000000 0.041667 0.080000       24
+                             Text on phone   0.082051 0.166667 0.109966       96
+                            Neck - scratch   0.069212 0.302083 0.112621       96
+                         Write name on leg   0.090909 0.166667 0.117647       24
+                         Neck - pinch skin   0.155340 0.166667 0.160804       96
+                     Scratch knee/leg skin   0.096296 0.541667 0.163522       24
+                            Glasses on/off   0.210526 0.333333 0.258065       24
+                                Wave hello   0.250000 0.661972 0.362934       71

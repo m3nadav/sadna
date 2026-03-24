@@ -1,8 +1,10 @@
 """
-Train small MLP specialists on frozen 256-d fused features from Fusion_ToF_Multistream_CNN_finetune.
+Train small MLP specialists on frozen fused features from train_fusion_thm_tof_multistream_cnn_finetune
+(same fused dim as ThmToFFusionMultistreamCNNDeepFinetune: FUSION_INERTIAL_DIM + TOF_FEAT_DIM + THM_FEAT_DIM).
 
 Pipeline:
-1. Ensures validation analysis exists (runs analyze_fusion_tof_multistream_cnn.py --auto val finetune if needed).
+1. Ensures validation analysis exists (runs analyze_fusion_tof_multistream_cnn.py --auto val finetune;
+   predictions live under the same directory as analyze_fusion_tof_multistream_cnn.output_dir_for_split("val","finetune")).
 2. Loads val predictions.npz to derive per-block gating: top-k (smallest k with high recall on val
    for samples whose true label is in the block) and margin threshold tau (percentile of p1-p2 on
    within-block errors).
@@ -31,26 +33,29 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
 
-from train_multistream_cnn import (
-    load_train_data,
-    final_robust_split,
-    apply_label_encoding,
-    BFRB_GESTURES,
-)
+from utils import BFRB_GESTURES, RANDOM_STATE, apply_label_encoding, final_robust_split, load_train_data
 from train_tof_cnn import get_tof_columns
-from train_fusion_tof_multistream_cnn import AccRotToFSequenceDataset, collate_acc_rot_tof
-from train_fusion_tof_multistream_cnn_finetune import (
+from train_multistream_cnn_thermal import get_thm_columns, compute_train_thermal_zscore_params
+from train_fusion_tof_multistream_cnn import FUSION_INERTIAL_DIM, TOF_FEAT_DIM
+from train_fusion_thm_tof_multistream_cnn_finetune import (
     SAVE_PATH as FINETUNE_CHECKPOINT_PATH,
+    THM_CHECKPOINT_PATH,
+    THM_FEAT_DIM,
+    AccRotToFThmSequenceDataset,
+    collate_acc_rot_tof_thm,
     make_fusion_finetune_128,
     make_tof_finetune_extractor,
-    ToFFusionMultistreamCNNDeepFinetune,
+    make_thm_finetune_extractor,
+    ThmToFFusionMultistreamCNNDeepFinetune,
     HEAD_HIDDEN_DIMS,
     HEAD_DROPOUT,
     FUSION_CHECKPOINT_PATH,
     TOF_CHECKPOINT_PATH,
 )
+from analyze_fusion_tof_multistream_cnn import output_dir_for_split
 
-VAL_ANALYSIS_DIR = Path("analysis_results/fusion_tof_multistream_cnn_conv2d_finetune_val")
+# Same val+finetune output folder as analyze_fusion_tof_multistream_cnn.py (fusion_thm_tof_*_finetune_val).
+VAL_ANALYSIS_DIR = Path(output_dir_for_split("val", "finetune"))
 VAL_PREDICTIONS_NPZ = VAL_ANALYSIS_DIR / "predictions.npz"
 GATING_JSON = Path("models/deep_learning_models/fusion_tof_specialists_gating.json")
 SPECIALIST_DIR = Path("models/deep_learning_models")
@@ -93,14 +98,13 @@ SPECIALIST_BLOCK_SPECS: list[dict] = [
     },
 ]
 
-FEAT_DIM = 256
+FEAT_DIM = FUSION_INERTIAL_DIM + TOF_FEAT_DIM + THM_FEAT_DIM
 SPECIALIST_HIDDEN = 64
 SPECIALIST_DROPOUT = 0.2
 RECALL_TARGET = 0.92
 MARGIN_PERCENTILE_ON_WBE = 75.0  # within-block errors: tau = percentile(margin)
 MARGIN_FALLBACK_PERCENTILE = 50.0
 MAX_TOP_K = 5
-RANDOM_STATE = 42
 
 
 def to_json_serializable(obj):
@@ -153,7 +157,7 @@ class SpecialistMLP(nn.Module):
         return self.net(x)
 
 
-def load_frozen_finetune_model(num_classes: int, device: torch.device) -> ToFFusionMultistreamCNNDeepFinetune:
+def load_frozen_finetune_model(num_classes: int, device: torch.device) -> ThmToFFusionMultistreamCNNDeepFinetune:
     train_df = load_train_data()
     train_df["is_bfrb"] = train_df["gesture"].isin(BFRB_GESTURES)
     trainset_df, valset_df, testset_df = final_robust_split(train_df)
@@ -163,11 +167,19 @@ def load_frozen_finetune_model(num_classes: int, device: torch.device) -> ToFFus
     train_df, trainset_df, valset_df, testset_df, _, _ = apply_label_encoding(
         train_df, trainset_df, valset_df, testset_df
     )
-    fusion_128 = make_fusion_finetune_128(num_classes, FUSION_CHECKPOINT_PATH, device, trainset_df)
+    thm_cols = get_thm_columns(train_df)
+    if not thm_cols:
+        raise ValueError("No thm_* columns; specialists require THM+ToF finetune backbone.")
+    train_mean_raw, _ = compute_train_thermal_zscore_params(trainset_df, thm_cols)
+    joint_partial = make_fusion_finetune_128(num_classes, FUSION_CHECKPOINT_PATH, device, trainset_df)
     tof_feat = make_tof_finetune_extractor(num_classes, TOF_CHECKPOINT_PATH, device)
-    model = ToFFusionMultistreamCNNDeepFinetune(
-        fusion_128,
+    thm_feat = make_thm_finetune_extractor(
+        num_classes, THM_CHECKPOINT_PATH, device, trainset_df=trainset_df, thm_cols=thm_cols
+    )
+    model = ThmToFFusionMultistreamCNNDeepFinetune(
+        joint_partial,
         tof_feat,
+        thm_feat,
         num_classes=num_classes,
         head_hidden_dims=HEAD_HIDDEN_DIMS,
         head_dropout=HEAD_DROPOUT,
@@ -183,22 +195,30 @@ def load_frozen_finetune_model(num_classes: int, device: torch.device) -> ToFFus
 
 @torch.no_grad()
 def forward_fused_features(
-    backbone: ToFFusionMultistreamCNNDeepFinetune,
+    backbone: ThmToFFusionMultistreamCNNDeepFinetune,
     acc,
     rot,
+    rot_mask,
     tof_padded,
     lengths,
+    thm_padded,
     has_rot,
     has_tof,
+    has_thm,
     device,
 ):
     acc = acc.to(device)
     rot = rot.to(device)
+    rot_mask = rot_mask.to(device)
     tof_padded = tof_padded.to(device)
     lengths = lengths.to(device)
+    thm_padded = thm_padded.to(device)
     has_rot = has_rot.to(device)
     has_tof = has_tof.to(device)
-    return backbone.fused_features(acc, rot, tof_padded, lengths, has_rot, has_tof)
+    has_thm = has_thm.to(device)
+    return backbone.fused_features(
+        acc, rot, rot_mask, tof_padded, lengths, thm_padded, has_rot, has_tof, has_thm
+    )
 
 
 def derive_top_k_for_block(
@@ -265,7 +285,7 @@ def derive_margin_threshold(
 
 
 def train_one_specialist(
-    backbone: ToFFusionMultistreamCNNDeepFinetune,
+    backbone: ThmToFFusionMultistreamCNNDeepFinetune,
     train_loader: DataLoader,
     val_loader: DataLoader,
     global_to_local: dict[int, int],
@@ -287,11 +307,13 @@ def train_one_specialist(
         tr_loss = 0.0
         tr_n = 0
         tr_acc = 0.0
-        for acc, rot, tof, lens, hr, ht, y in train_loader:
+        for acc, rot, rm, tof, lens, thm, hr, ht, hth, y in train_loader:
             y = y.to(device)
             y_local = torch.tensor([global_to_local[int(c)] for c in y.cpu().tolist()], device=device)
             with torch.no_grad():
-                z = forward_fused_features(backbone, acc, rot, tof, lens, hr, ht, device)
+                z = forward_fused_features(
+                    backbone, acc, rot, rm, tof, lens, thm, hr, ht, hth, device
+                )
             opt.zero_grad()
             logits = spec(z)
             loss = crit(logits, y_local)
@@ -305,10 +327,12 @@ def train_one_specialist(
         va = 0.0
         vn = 0
         with torch.no_grad():
-            for acc, rot, tof, lens, hr, ht, y in val_loader:
+            for acc, rot, rm, tof, lens, thm, hr, ht, hth, y in val_loader:
                 y = y.to(device)
                 y_local = torch.tensor([global_to_local[int(c)] for c in y.cpu().tolist()], device=device)
-                z = forward_fused_features(backbone, acc, rot, tof, lens, hr, ht, device)
+                z = forward_fused_features(
+                    backbone, acc, rot, rm, tof, lens, thm, hr, ht, hth, device
+                )
                 logits = spec(z)
                 va += (logits.argmax(1) == y_local).float().mean().item()
                 vn += 1
@@ -357,6 +381,11 @@ def main():
     name_to_idx = {g: gesture_map[g] for g in class_names}
 
     tof_cols = get_tof_columns(train_df)
+    thm_cols = get_thm_columns(train_df)
+    if not thm_cols:
+        raise ValueError("No thermal columns in data; cannot train THM+ToF specialists.")
+    train_mean_raw, _ = compute_train_thermal_zscore_params(trainset_df, thm_cols)
+    collate_thm = collate_acc_rot_tof_thm(train_mean_raw)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Device: {device}")
     print(f"Loading frozen finetune backbone from {FINETUNE_CHECKPOINT_PATH}...")
@@ -391,10 +420,10 @@ def main():
             print("  skip: not enough train sequences")
             continue
 
-        train_ds = AccRotToFSequenceDataset(train_sub, tof_cols)
-        val_ds = AccRotToFSequenceDataset(val_sub, tof_cols)
-        train_loader = DataLoader(train_ds, batch_size=16, shuffle=True, collate_fn=collate_acc_rot_tof)
-        val_loader = DataLoader(val_ds, batch_size=16, shuffle=False, collate_fn=collate_acc_rot_tof)
+        train_ds = AccRotToFThmSequenceDataset(train_sub, tof_cols, thm_cols, train_mean_raw)
+        val_ds = AccRotToFThmSequenceDataset(val_sub, tof_cols, thm_cols, train_mean_raw)
+        train_loader = DataLoader(train_ds, batch_size=16, shuffle=True, collate_fn=collate_thm)
+        val_loader = DataLoader(val_ds, batch_size=16, shuffle=False, collate_fn=collate_thm)
 
         specialist = train_one_specialist(
             backbone, train_loader, val_loader, global_to_local, num_local, device
@@ -422,12 +451,14 @@ def main():
         "backbone_checkpoint": FINETUNE_CHECKPOINT_PATH,
         "fusion_pretrained": FUSION_CHECKPOINT_PATH,
         "tof_pretrained": TOF_CHECKPOINT_PATH,
+        "thm_pretrained": THM_CHECKPOINT_PATH,
+        "val_predictions_dir": str(VAL_ANALYSIS_DIR),
         "feat_dim": FEAT_DIM,
         "class_names": class_names,
         "gesture_map": {k: int(v) for k, v in gesture_map.items()},
         "gating_rule": (
             "Let p1>=p2 be the two largest main-model softmax probabilities and c1,c2 the corresponding class indices. "
-            "If (p1-p2) < tau_B AND {c1,c2} ⊆ B.class_indices, run specialist MLP on frozen fused_features (256-d) "
+            f"If (p1-p2) < tau_B AND {{c1,c2}} ⊆ B.class_indices, run specialist MLP on frozen fused_features ({FEAT_DIM}-d) "
             "and replace prediction with local_to_global[argmax(specialist_logits)]. Otherwise keep main argmax. "
             "Field top_k is the smallest k in [2,5] on validation such that P(true ∈ top-k | y in block) >= recall_target; "
             "use it to audit coverage or for extended gating (e.g. require true ∈ top-k before override)."

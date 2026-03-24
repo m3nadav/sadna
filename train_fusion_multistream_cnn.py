@@ -1,9 +1,8 @@
 """
-Train a fusion model that takes the 64-dim features (last layer before classification)
-from both the acc and rot Multistream CNNs, concatenates them to 128-dim, and classifies
-with a 2-layer head to 18 classes. All acc and rot backbone layers are frozen; only the
-fusion classifier is trained. Same train/val/test split and flow as the other models;
-only sequences with complete quaternion data are used.
+Train a joint early-fusion CNN: z-scored acc (3) + min-max quaternions (4) + per-timestep
+validity mask (1) stacked as (8, T), single 2D conv trunk, then MLP classifier.
+Uses all sequences (no drop for missing quaternion at sequence level); invalid quat timesteps
+are zeroed with mask 0. Checkpoint feeds frozen 64-d extractors for ToF/THM fusion.
 """
 import os
 import numpy as np
@@ -12,124 +11,100 @@ import torch
 from torch import nn, optim
 from torch.utils.data import DataLoader, Dataset
 from torch.nn.utils.rnn import pad_sequence
-from sklearn.preprocessing import LabelEncoder
+
+from utils import (
+    ACC_COLS,
+    BFRB_GESTURES,
+    ROT_COLS,
+    ZScoreNormalize,
+    apply_label_encoding,
+    compute_acc_zscore_stats,
+    final_robust_split,
+    finalize_training_checkpoint,
+    load_train_data,
+    quat_row_valid_mask,
+    set_default_seeds,
+)
+from train_multistream_cnn_rot import MinMaxNormalize
 
 pd.set_option("display.max_columns", None)
 pd.set_option("display.width", None)
 pd.set_option("display.max_colwidth", None)
 pd.set_option("display.max_rows", None)
 
-RANDOM_STATE = 42
-np.random.seed(RANDOM_STATE)
-torch.manual_seed(RANDOM_STATE)
+set_default_seeds()
 
-# Paths to pretrained checkpoints
-ACC_CHECKPOINT_PATH = "models/deep_learning_models/Multistream_CNN_acc_only.pth"
-ROT_CHECKPOINT_PATH = "models/deep_learning_models/Multistream_CNN_rot_only.pth"
-ROT_COLS = ["rot_x", "rot_y", "rot_z", "rot_w"]
+SAVE_PATH = "models/deep_learning_models/Fusion_Multistream_CNN.pth"
 
 
-# ---------------------------------------------------------------------------
-# Imports from acc and rot training scripts
-# ---------------------------------------------------------------------------
-from train_multistream_cnn import (
-    load_train_data,
-    final_robust_split,
-    apply_label_encoding,
-    BFRB_GESTURES,
-    MultistreamCNNInertialNet,
-    compute_acc_zscore_stats,
-)
-from train_multistream_cnn_rot import (
-    MultistreamCNNRotNet,
-    drop_sequences_with_missing_quaternions,
-)
+class JointAccRotMultistreamNet(nn.Module):
+    """Joint acc+rot CNN: (B,3,T), (B,4,T), (B,1,T) mask -> logits. Mask: 1 = valid unit quat row."""
 
+    def __init__(self, num_classes=18, norm_mean=None, norm_std=None):
+        super(JointAccRotMultistreamNet, self).__init__()
+        if norm_mean is None or norm_std is None:
+            raise ValueError("norm_mean and norm_std are required (from compute_acc_zscore_stats on train split)")
+        self.acc_zscore = ZScoreNormalize(norm_mean, norm_std)
+        self.rot_norm = MinMaxNormalize(-1.0, 1.0)
 
-# ---------------------------------------------------------------------------
-# Feature extractors: acc and rot models with classifier replaced by feature-only part (64-dim)
-# ---------------------------------------------------------------------------
-def make_acc_feature_extractor(num_classes, checkpoint_path, device, trainset_df=None):
-    """Load acc model and replace classifier with feature part only (output 64-dim). Freeze all."""
-    ckpt = torch.load(checkpoint_path, map_location=device, weights_only=False)
-    sd = ckpt["model_state_dict"] if isinstance(ckpt, dict) and "model_state_dict" in ckpt else ckpt
-    if isinstance(ckpt, dict) and "input_zscore_mean" in ckpt and "input_zscore_std" in ckpt:
-        m = np.asarray(ckpt["input_zscore_mean"], dtype=np.float32)
-        s = np.asarray(ckpt["input_zscore_std"], dtype=np.float32)
-    elif "norm.mean" in sd:
-        m = sd["norm.mean"].detach().cpu().numpy()
-        s = sd["norm.std"].detach().cpu().numpy()
-    elif trainset_df is not None:
-        m, s = compute_acc_zscore_stats(trainset_df)
-    else:
-        raise ValueError(
-            "Acc checkpoint missing input_zscore_mean/std or norm.mean/std; pass trainset_df or retrain."
+        self.conv1_block = nn.Sequential(
+            nn.Conv2d(1, 32, kernel_size=(8, 4), stride=(1, 4)),
+            nn.BatchNorm2d(32),
+            nn.ReLU(),
         )
-    model = MultistreamCNNInertialNet(num_classes=num_classes, norm_mean=m, norm_std=s)
-    model.load_state_dict(sd, strict="norm.mean" in sd)
-    # classifier is Sequential(Linear(64,128), ReLU, Linear(128,64), ReLU, Linear(64,num_classes))
-    # Keep only up to the last ReLU so output is 64-dim
-    model.classifier = nn.Sequential(
-        model.classifier[0],  # Linear(64, 128)
-        model.classifier[1],  # ReLU
-        model.classifier[2],  # Linear(128, 64)
-        model.classifier[3],  # ReLU
-    )
-    for p in model.parameters():
-        p.requires_grad = False
-    return model.to(device)
+
+        self.conv2_block = nn.Sequential(
+            nn.Conv2d(32, 64, kernel_size=(2, 6), stride=(2, 2), padding=(1, 3)),
+            nn.BatchNorm2d(64),
+            nn.ReLU(),
+        )
+
+        self.max_pool = nn.MaxPool2d(
+            kernel_size=(1, 2), stride=(1, 1), padding=(0, 1)
+        )
+        self.adaptive_avg_pool = nn.AdaptiveAvgPool2d(1)
+
+        self.classifier = nn.Sequential(
+            nn.Linear(64, 128),
+            nn.ReLU(),
+            nn.Linear(128, 64),
+            nn.ReLU(),
+            nn.Linear(64, num_classes),
+        )
+
+    def forward(self, acc, rot, rot_mask):
+        """
+        acc: (B, 3, T), rot: (B, 4, T), rot_mask: (B, 1, T) float 0/1.
+        """
+        acc_n = self.acc_zscore(acc)
+        m = rot_mask.to(dtype=acc.dtype, device=acc.device)
+        rot_clean = rot * m.expand_as(rot)
+        rot_n = self.rot_norm(rot_clean)
+        x = torch.cat([acc_n, rot_n, m], dim=1)
+        x = x.unsqueeze(1)
+        x = self.conv1_block(x)
+        x = self.conv2_block(x)
+        x = self.max_pool(x)
+        x = self.adaptive_avg_pool(x)
+        x = torch.flatten(x, 1)
+        return self.classifier(x)
 
 
-def make_rot_feature_extractor(num_classes, checkpoint_path, device):
-    """Load rot model and replace classifier with feature part only (output 64-dim). Freeze all."""
-    model = MultistreamCNNRotNet(num_classes=num_classes)
-    ckpt = torch.load(checkpoint_path, map_location=device, weights_only=False)
-    if "model_state_dict" in ckpt:
-        model.load_state_dict(ckpt["model_state_dict"])
-    else:
-        model.load_state_dict(ckpt)
+def truncate_joint_classifier_to_features(model):
+    """Replace classifier with layers 0..3 (64-d output). Modifies model in place."""
     model.classifier = nn.Sequential(
         model.classifier[0],
         model.classifier[1],
         model.classifier[2],
         model.classifier[3],
     )
-    for p in model.parameters():
-        p.requires_grad = False
-    return model.to(device)
 
 
 # ---------------------------------------------------------------------------
-# Fusion model: concat(acc_features, rot_features) -> 2-layer head -> num_classes
-# ---------------------------------------------------------------------------
-class FusionMultistreamCNN(nn.Module):
-    """
-    Concatenates 64-dim features from acc and rot backbones (frozen) and classifies
-    with a 2-layer head: Linear(128, hidden_dim) -> ReLU -> Linear(hidden_dim, num_classes).
-    """
-
-    def __init__(self, acc_backbone, rot_backbone, num_classes=18, hidden_dim=64):
-        super(FusionMultistreamCNN, self).__init__()
-        self.acc_backbone = acc_backbone
-        self.rot_backbone = rot_backbone
-        self.fusion_classifier = nn.Sequential(
-            nn.Linear(128, hidden_dim),
-            nn.ReLU(),
-            nn.Linear(hidden_dim, num_classes),
-        )
-
-    def forward(self, acc, rot):
-        acc_feat = self.acc_backbone(acc)   # (batch, 64)
-        rot_feat = self.rot_backbone(rot)   # (batch, 64)
-        x = torch.cat([acc_feat, rot_feat], dim=1)  # (batch, 128)
-        return self.fusion_classifier(x)
-
-
-# ---------------------------------------------------------------------------
-# Dataset: (acc, rot, label) per sequence; only sequences with complete quaternion
+# Dataset: (acc, rot, rot_mask, label); invalid quat timesteps zeroed, mask 0
 # ---------------------------------------------------------------------------
 class AccRotSequenceDataset(Dataset):
-    """Sequence-level dataset returning (acc (3,T), rot (4,T), label)."""
+    """Sequence-level dataset returning acc (3,T), rot (4,T), rot_mask (1,T), label."""
 
     def __init__(self, dataframe):
         self.df = dataframe.reset_index(drop=True)
@@ -139,147 +114,26 @@ class AccRotSequenceDataset(Dataset):
         return len(self.sequences)
 
     def __getitem__(self, idx):
-        seq_id, data = self.sequences[idx]
-        acc = torch.tensor(data[["acc_x", "acc_y", "acc_z"]].values, dtype=torch.float32).T
-        rot = torch.tensor(data[ROT_COLS].values, dtype=torch.float32).T
+        _seq_id, data = self.sequences[idx]
+        acc = torch.tensor(data[ACC_COLS].values, dtype=torch.float32).T
+        rot_np = data[ROT_COLS].values.astype(np.float64)
+        valid = quat_row_valid_mask(rot_np)
+        rot_filled = np.nan_to_num(rot_np, nan=0.0).astype(np.float32)
+        rot_filled[~valid] = 0.0
+        rot = torch.tensor(rot_filled, dtype=torch.float32).T
+        mask = torch.tensor(valid, dtype=torch.float32).unsqueeze(0)
         label = torch.tensor(data["gesture_encoded"].iloc[0], dtype=torch.long)
-        return acc, rot, label
+        return acc, rot, mask, label
 
 
 def collate_fn(batch):
-    """Pad acc and rot sequences; stack labels."""
-    accs, rots, labels = zip(*batch)
+    """Pad acc, rot, mask; stack labels."""
+    accs, rots, masks, labels = zip(*batch)
     acc_padded = pad_sequence([a.T for a in accs], batch_first=True, padding_value=0).transpose(1, 2)
     rot_padded = pad_sequence([r.T for r in rots], batch_first=True, padding_value=0).transpose(1, 2)
+    mask_padded = pad_sequence([m.T for m in masks], batch_first=True, padding_value=0).transpose(1, 2)
     labels_stacked = torch.stack(labels)
-    return acc_padded, rot_padded, labels_stacked
-
-
-# ---------------------------------------------------------------------------
-# Training loop (same structure as train_multistream_cnn.py)
-# ---------------------------------------------------------------------------
-def save_model_and_metadata(
-    model,
-    optimizer,
-    gesture_map,
-    history,
-    train_seq_ids,
-    val_seq_ids,
-    test_seq_ids,
-    scheduler,
-    filepath="model_checkpoint.pth",
-):
-    """Save full checkpoint. Only fusion classifier is trainable; backbones are frozen."""
-    dirpath = os.path.dirname(filepath)
-    if dirpath:
-        os.makedirs(dirpath, exist_ok=True)
-    checkpoint = {
-        "model_state_dict": model.state_dict(),
-        "optimizer_state_dict": optimizer.state_dict(),
-        "scheduler_state_dict": scheduler.state_dict(),
-        "gesture_map": gesture_map,
-        "history": history,
-        "num_classes": len(gesture_map),
-        "train_sequence_ids": train_seq_ids,
-        "val_sequence_ids": val_seq_ids,
-        "test_sequence_ids": test_seq_ids,
-    }
-    # Acc backbone z-score (same keys as acc-only checkpoints) for loaders / analysis
-    if hasattr(model, "acc_backbone") and hasattr(model.acc_backbone, "norm"):
-        if hasattr(model.acc_backbone.norm, "mean"):
-            checkpoint["input_zscore_mean"] = model.acc_backbone.norm.mean.detach().cpu().numpy()
-            checkpoint["input_zscore_std"] = model.acc_backbone.norm.std.detach().cpu().numpy()
-    torch.save(checkpoint, filepath)
-    print(f"Model checkpoint saved to {filepath}")
-
-
-def train_model(
-    model,
-    train_loader,
-    val_loader,
-    criterion,
-    optimizer,
-    scheduler,
-    device,
-    num_epochs=100,
-    early_stop_patience=15,
-    save_path="best_fusion_multistream_cnn.pth",
-):
-    """Run training with early stopping and best-model save."""
-    history = {"train_loss": [], "train_acc": [], "val_loss": [], "val_acc": [], "lr": []}
-    best_val_acc = 0
-    patience_counter = 0
-
-    for epoch in range(num_epochs):
-        model.train()
-        epoch_loss = 0
-        epoch_acc = 0
-        num_batches = 0
-
-        for batch in train_loader:
-            acc, rot, labels = batch
-            acc = acc.to(device)
-            rot = rot.to(device)
-            labels = labels.to(device)
-            optimizer.zero_grad()
-            outputs = model(acc, rot)
-            loss = criterion(outputs, labels)
-            loss.backward()
-            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
-            optimizer.step()
-            batch_acc = (outputs.argmax(1) == labels).float().mean()
-            epoch_loss += loss.item()
-            epoch_acc += batch_acc.item()
-            num_batches += 1
-
-        avg_train_loss = epoch_loss / num_batches
-        avg_train_acc = epoch_acc / num_batches
-
-        model.eval()
-        val_loss = 0
-        val_acc = 0
-        val_batches = 0
-        with torch.no_grad():
-            for v_acc, v_rot, v_labels in val_loader:
-                v_acc = v_acc.to(device)
-                v_rot = v_rot.to(device)
-                v_labels = v_labels.to(device)
-                val_outputs = model(v_acc, v_rot)
-                val_loss += criterion(val_outputs, v_labels).item()
-                val_acc += (val_outputs.argmax(1) == v_labels).float().mean().item()
-                val_batches += 1
-
-        avg_val_loss = val_loss / val_batches
-        avg_val_acc = val_acc / val_batches
-        scheduler.step(avg_val_loss)
-        current_lr = optimizer.param_groups[0]["lr"]
-
-        history["train_loss"].append(avg_train_loss)
-        history["train_acc"].append(avg_train_acc * 100)
-        history["val_loss"].append(avg_val_loss)
-        history["val_acc"].append(avg_val_acc * 100)
-        history["lr"].append(current_lr)
-
-        if avg_val_acc > best_val_acc:
-            best_val_acc = avg_val_acc
-            patience_counter = 0
-            torch.save(model.state_dict(), save_path)
-        else:
-            patience_counter += 1
-
-        print(
-            f"Epoch [{epoch+1}/{num_epochs}] "
-            f"| Train Loss: {avg_train_loss:.4f} Acc: {avg_train_acc*100:.2f}% "
-            f"| Val Loss: {avg_val_loss:.4f} Acc: {avg_val_acc*100:.2f}% "
-            f"| LR: {current_lr:.6f} | Best Val: {best_val_acc*100:.2f}%"
-        )
-
-        if patience_counter >= early_stop_patience:
-            print(f"\nEarly stopping triggered after {epoch+1} epochs!")
-            break
-
-    print(f"\n✅ Training complete! Best validation accuracy: {best_val_acc*100:.2f}%")
-    return history
+    return acc_padded, rot_padded, mask_padded, labels_stacked
 
 
 # ---------------------------------------------------------------------------
@@ -293,31 +147,23 @@ def main():
     trainset_df = trainset_df.reset_index(drop=True)
     valset_df = valset_df.reset_index(drop=True)
     testset_df = testset_df.reset_index(drop=True)
-    print(f"Split (before dropping missing quaternion): train {len(trainset_df)} rows, val {len(valset_df)} rows, test {len(testset_df)} rows")
+    print(
+        f"Split (all sequences, no quaternion sequence filter): train {len(trainset_df)} rows, "
+        f"val {len(valset_df)} rows, test {len(testset_df)} rows"
+    )
 
     train_df, trainset_df, valset_df, testset_df, le, gesture_map = apply_label_encoding(
         train_df, trainset_df, valset_df, testset_df
     )
 
-    # Same as rot model: only use sequences with complete quaternion data
-    n_train_seq_before = trainset_df["sequence_id"].nunique()
-    n_val_seq_before = valset_df["sequence_id"].nunique()
-    n_test_seq_before = testset_df["sequence_id"].nunique()
-
-    trainset_df, train_seq_ids = drop_sequences_with_missing_quaternions(trainset_df)
-    valset_df, val_seq_ids = drop_sequences_with_missing_quaternions(valset_df)
-    testset_df, test_seq_ids = drop_sequences_with_missing_quaternions(testset_df)
-
-    print(
-        f"Dropped sequences with missing quaternions: "
-        f"train {n_train_seq_before} -> {len(train_seq_ids)}, "
-        f"val {n_val_seq_before} -> {len(val_seq_ids)}, "
-        f"test {n_test_seq_before} -> {len(test_seq_ids)}"
-    )
-    print(f"After drop: train {len(trainset_df)} rows, val {len(valset_df)} rows, test {len(testset_df)} rows")
+    train_seq_ids = trainset_df["sequence_id"].unique().tolist()
+    val_seq_ids = valset_df["sequence_id"].unique().tolist()
+    test_seq_ids = testset_df["sequence_id"].unique().tolist()
 
     num_classes = len(le.classes_)
     print(f"Num classes: {num_classes}")
+
+    acc_mean, acc_std = compute_acc_zscore_stats(trainset_df)
 
     train_ds = AccRotSequenceDataset(trainset_df)
     val_ds = AccRotSequenceDataset(valset_df)
@@ -337,22 +183,18 @@ def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
 
-    # Load frozen backbones (feature extractors)
-    print("Loading acc backbone (frozen)...")
-    acc_backbone = make_acc_feature_extractor(num_classes, ACC_CHECKPOINT_PATH, device, trainset_df)
-    print("Loading rot backbone (frozen)...")
-    rot_backbone = make_rot_feature_extractor(num_classes, ROT_CHECKPOINT_PATH, device)
-
-    model = FusionMultistreamCNN(acc_backbone, rot_backbone, num_classes=num_classes, hidden_dim=64)
+    model = JointAccRotMultistreamNet(
+        num_classes=num_classes, norm_mean=acc_mean, norm_std=acc_std
+    )
     model = model.to(device)
 
     n_total = sum(p.numel() for p in model.parameters())
     n_trainable = sum(p.numel() for p in model.parameters() if p.requires_grad)
-    print(f"Model: {n_total:,} total parameters, {n_trainable:,} trainable (fusion classifier only)")
+    print(f"Model: {n_total:,} total parameters, {n_trainable:,} trainable (joint end-to-end)")
 
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.AdamW(
-        filter(lambda p: p.requires_grad, model.parameters()),
+        model.parameters(),
         lr=0.001,
         weight_decay=1e-4,
     )
@@ -361,31 +203,49 @@ def main():
     )
 
     os.makedirs("models/deep_learning_models", exist_ok=True)
-    save_path = "models/deep_learning_models/Fusion_Multistream_CNN.pth"
-    history = train_model(
+    save_path = SAVE_PATH
+
+    def train_step(batch):
+        acc, rot, rot_mask, labels = batch
+        acc = acc.to(device)
+        rot = rot.to(device)
+        rot_mask = rot_mask.to(device)
+        labels = labels.to(device)
+        outputs = model(acc, rot, rot_mask)
+        loss = criterion(outputs, labels)
+        loss.backward()
+        torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+        optimizer.step()
+        batch_acc = (outputs.argmax(1) == labels).float().mean()
+        return loss.item(), batch_acc.item()
+
+    def val_step(batch):
+        v_acc, v_rot, v_mask, v_labels = batch
+        v_acc = v_acc.to(device)
+        v_rot = v_rot.to(device)
+        v_mask = v_mask.to(device)
+        v_labels = v_labels.to(device)
+        val_outputs = model(v_acc, v_rot, v_mask)
+        return criterion(val_outputs, v_labels).item(), (
+            val_outputs.argmax(1) == v_labels
+        ).float().mean().item()
+
+    history = finalize_training_checkpoint(
         model,
         train_loader,
         val_loader,
-        criterion,
         optimizer,
         scheduler,
         device,
-        num_epochs=100,
-        early_stop_patience=15,
-        save_path=save_path,
-    )
-
-    model.load_state_dict(torch.load(save_path, map_location=device))
-    save_model_and_metadata(
-        model,
-        optimizer,
         gesture_map,
-        history,
         train_seq_ids,
         val_seq_ids,
         test_seq_ids,
-        scheduler,
-        filepath=save_path,
+        save_path,
+        train_step,
+        val_step,
+        num_epochs=100,
+        early_stop_patience=15,
     )
     return model, history, le
 

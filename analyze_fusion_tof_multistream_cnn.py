@@ -1,10 +1,13 @@
 """
-Analyze Fusion_ToF_Multistream_CNN: same evaluations as analyze_fusion_multistream_cnn.py
+Analyze fusion acc+rot+ToF models: same evaluations as analyze_fusion_multistream_cnn.py
 (classification report, confusion matrix, misclassifications, per-class metrics,
 confidence, region accuracy, ROC/AUC, predictions.npz).
 
-Test or validation set: same subject split as training; no drop for missing ROT/ToF —
-uses per-sequence has_rot / has_tof flags (matches train_fusion_tof_multistream_cnn.py).
+Test or validation set: same subject split as training; no drop for missing sensors —
+uses per-sequence has_rot / has_tof flags (baseline matches train_fusion_tof_multistream_cnn.py).
+
+Finetune variant uses the quad-modal checkpoint from train_fusion_thm_tof_multistream_cnn_finetune.py
+(acc+rot+ToF+THM, deep head, partial backbone unfreeze) with has_thm and thermal padding matching training.
 
 When run as a script, you are prompted for test vs validation and baseline vs finetune model.
 Artifacts are written under a directory derived from `OUTPUT_DIR` (base name) plus suffixes:
@@ -50,19 +53,28 @@ from train_fusion_tof_multistream_cnn import (
     FUSION_CHECKPOINT_PATH,
     TOF_CHECKPOINT_PATH,
 )
-from train_fusion_tof_multistream_cnn_finetune import (
+from train_fusion_thm_tof_multistream_cnn_finetune import (
     make_fusion_finetune_128,
     make_tof_finetune_extractor,
-    ToFFusionMultistreamCNNDeepFinetune,
+    make_thm_finetune_extractor,
+    ThmToFFusionMultistreamCNNDeepFinetune,
     HEAD_HIDDEN_DIMS,
     HEAD_DROPOUT,
+    THM_CHECKPOINT_PATH,
+    SAVE_PATH as THM_TOF_FINETUNE_SAVE_PATH,
+    AccRotToFThmSequenceDataset,
+    collate_acc_rot_tof_thm,
+    compute_sequence_thm_stats,
 )
+from train_multistream_cnn_thermal import get_thm_columns, compute_train_thermal_zscore_params
 
 TRIPLE_CHECKPOINT_PATH = "models/deep_learning_models/Fusion_ToF_Multistream_CNN.pth"
-FINETUNE_CHECKPOINT_PATH = "models/deep_learning_models/Fusion_ToF_Multistream_CNN_finetune.pth"
-OUTPUT_DIR = "analysis_results/fusion_tof_multistream_cnn_conv2d"
+FINETUNE_CHECKPOINT_PATH = THM_TOF_FINETUNE_SAVE_PATH
+OUTPUT_DIR = "analysis_results/fusion_thm_tof_multistream_cnn"
 # Effective path for this run; `main()` sets from `output_dir_for_split` before saving.
 ACTIVE_OUTPUT_DIR = OUTPUT_DIR
+# Set in `main()` from baseline vs finetune for plot/report titles.
+REPORT_MODEL_NAME = "Fusion ToF Multistream CNN"
 
 
 def output_dir_for_split(split: str, variant: str = "baseline") -> str:
@@ -118,24 +130,44 @@ def load_model_and_data(
     ckpt = torch.load(checkpoint_path, map_location=device, weights_only=False)
 
     if variant == "finetune":
-        print(
-            f"Building finetune model (deep head + partial-unfreeze backbones) from "
-            f"{FUSION_CHECKPOINT_PATH} + {TOF_CHECKPOINT_PATH}, weights from {checkpoint_path}..."
+        thm_cols = (
+            list(ckpt["thm_cols"])
+            if isinstance(ckpt, dict) and ckpt.get("thm_cols")
+            else get_thm_columns(train_df)
         )
-        fusion_128 = make_fusion_finetune_128(num_classes, FUSION_CHECKPOINT_PATH, device, trainset_df)
+        if not thm_cols:
+            raise ValueError("Finetune evaluation requires thm_* columns in data or checkpoint thm_cols.")
+        compute_sequence_thm_stats(eval_df, thm_cols, f"{split_tag.upper()} (evaluation)")
+
+        if isinstance(ckpt, dict) and ckpt.get("thm_mean") is not None:
+            train_mean_raw = np.asarray(ckpt["thm_mean"], dtype=np.float64).reshape(len(thm_cols))
+        else:
+            train_mean_raw, _ = compute_train_thermal_zscore_params(trainset_df, thm_cols)
+            print("Checkpoint missing thm_mean; using train-split thermal imputation stats.")
+
+        print(
+            f"Building Thm+ToF finetune model (deep head + partial-unfreeze) from "
+            f"{FUSION_CHECKPOINT_PATH} + {TOF_CHECKPOINT_PATH} + {THM_CHECKPOINT_PATH}, "
+            f"weights from {checkpoint_path}..."
+        )
+        joint_partial = make_fusion_finetune_128(num_classes, FUSION_CHECKPOINT_PATH, device, trainset_df)
         tof_feat = make_tof_finetune_extractor(num_classes, TOF_CHECKPOINT_PATH, device)
-        model = ToFFusionMultistreamCNNDeepFinetune(
-            fusion_128,
+        thm_feat = make_thm_finetune_extractor(
+            num_classes, THM_CHECKPOINT_PATH, device, trainset_df=trainset_df, thm_cols=thm_cols
+        )
+        model = ThmToFFusionMultistreamCNNDeepFinetune(
+            joint_partial,
             tof_feat,
+            thm_feat,
             num_classes=num_classes,
             head_hidden_dims=HEAD_HIDDEN_DIMS,
             head_dropout=HEAD_DROPOUT,
         )
     else:
         print(f"Building baseline model from {FUSION_CHECKPOINT_PATH} and {TOF_CHECKPOINT_PATH}...")
-        fusion_128 = make_fusion_frozen_128(num_classes, FUSION_CHECKPOINT_PATH, device, trainset_df)
+        joint_inertial = make_fusion_frozen_128(num_classes, FUSION_CHECKPOINT_PATH, device, trainset_df)
         tof_feat = make_tof_feature_extractor(num_classes, TOF_CHECKPOINT_PATH, device)
-        model = ToFFusionMultistreamCNN(fusion_128, tof_feat, num_classes=num_classes, hidden_dim=64)
+        model = ToFFusionMultistreamCNN(joint_inertial, tof_feat, num_classes=num_classes, hidden_dim=64)
 
     if isinstance(ckpt, dict) and "model_state_dict" in ckpt:
         model.load_state_dict(ckpt["model_state_dict"])
@@ -144,12 +176,17 @@ def load_model_and_data(
     model = model.to(device)
     model.eval()
 
-    eval_ds = AccRotToFSequenceDataset(eval_df, tof_cols)
+    if variant == "finetune":
+        collate_fn = collate_acc_rot_tof_thm(train_mean_raw)
+        eval_ds = AccRotToFThmSequenceDataset(eval_df, tof_cols, thm_cols, train_mean_raw)
+    else:
+        collate_fn = collate_acc_rot_tof
+        eval_ds = AccRotToFSequenceDataset(eval_df, tof_cols)
     eval_loader = DataLoader(
         eval_ds,
         batch_size=16,
         shuffle=False,
-        collate_fn=collate_acc_rot_tof,
+        collate_fn=collate_fn,
     )
     return model, eval_loader, target_names, num_classes, le, split_tag
 
@@ -158,16 +195,29 @@ def run_evaluation(model, test_loader, device):
     all_preds = []
     all_labels = []
     all_outputs = []
+    quad_modal = isinstance(model, ThmToFFusionMultistreamCNNDeepFinetune)
 
     with torch.no_grad():
-        for acc, rot, tof_padded, lengths, has_rot, has_tof, labels in test_loader:
+        for batch in test_loader:
+            if quad_modal:
+                acc, rot, rot_mask, tof_padded, lengths, thm_padded, has_rot, has_tof, has_thm, labels = batch
+                thm_padded = thm_padded.to(device)
+                has_thm = has_thm.to(device)
+            else:
+                acc, rot, rot_mask, tof_padded, lengths, has_rot, has_tof, labels = batch
             acc = acc.to(device)
             rot = rot.to(device)
+            rot_mask = rot_mask.to(device)
             tof_padded = tof_padded.to(device)
             lengths = lengths.to(device)
             has_rot = has_rot.to(device)
             has_tof = has_tof.to(device)
-            outputs = model(acc, rot, tof_padded, lengths, has_rot, has_tof)
+            if quad_modal:
+                outputs = model(
+                    acc, rot, rot_mask, tof_padded, lengths, thm_padded, has_rot, has_tof, has_thm
+                )
+            else:
+                outputs = model(acc, rot, rot_mask, tof_padded, lengths, has_rot, has_tof)
             all_outputs.extend(outputs.cpu().numpy())
             _, predicted = torch.max(outputs.data, 1)
             all_preds.extend(predicted.cpu().numpy())
@@ -181,7 +231,7 @@ def analysis_classification_report_and_cm(all_labels, all_preds, target_names, s
     report = classification_report(all_labels, all_preds, target_names=target_names)
     path_txt = os.path.join(ACTIVE_OUTPUT_DIR, "classification_report.txt")
     with open(path_txt, "w") as f:
-        f.write(f"{split_label} Set Performance Analysis (Fusion ToF Multistream CNN)\n")
+        f.write(f"{split_label} Set Performance Analysis ({REPORT_MODEL_NAME})\n")
         f.write("=" * 60 + "\n\n")
         f.write(report)
     print(f"Saved: {path_txt}")
@@ -196,7 +246,7 @@ def analysis_classification_report_and_cm(all_labels, all_preds, target_names, s
         yticklabels=target_names,
         cmap="viridis",
     )
-    plt.title("Confusion Matrix: Fusion ToF Multistream CNN — BFRB vs. Non-BFRB Gestures")
+    plt.title(f"Confusion Matrix: {REPORT_MODEL_NAME} — BFRB vs. Non-BFRB Gestures")
     plt.ylabel("True Gesture")
     plt.xlabel("Predicted Gesture")
     path_fig = os.path.join(ACTIVE_OUTPUT_DIR, "confusion_matrix.png")
@@ -297,7 +347,7 @@ def analysis_per_class_metrics(all_labels, all_preds, target_names):
     ax.set_xlim(0, 1.05)
     ax.axvline(0.5, color="gray", linestyle="--", linewidth=0.8, alpha=0.6)
     ax.set_xlabel("Score")
-    ax.set_title("Per-Class Precision, Recall & F1 (sorted by F1) — Fusion ToF Multistream CNN")
+    ax.set_title(f"Per-Class Precision, Recall & F1 (sorted by F1) — {REPORT_MODEL_NAME}")
     ax.legend()
     plt.tight_layout()
     path_fig = os.path.join(ACTIVE_OUTPUT_DIR, "per_class_precision_recall_f1.png")
@@ -339,7 +389,7 @@ def analysis_confidence(all_outputs, all_labels, all_preds, target_names):
     )
     axes[0].set_xlabel("Max Softmax Probability (Confidence)")
     axes[0].set_ylabel("Count")
-    axes[0].set_title("Prediction Confidence: Correct vs. Wrong — Fusion ToF Multistream CNN")
+    axes[0].set_title(f"Prediction Confidence: Correct vs. Wrong — {REPORT_MODEL_NAME}")
     axes[0].legend()
 
     for mask, label, color in [(correct_mask, "Correct", "seagreen"), (~correct_mask, "Wrong", "tomato")]:
@@ -413,7 +463,7 @@ def analysis_region_accuracy(all_labels, all_preds, target_names):
     ax.axvline(0.5, color="gray", linestyle="--", linewidth=0.8)
     ax.set_xlim(0, 1.05)
     ax.set_xlabel("Accuracy")
-    ax.set_title("Accuracy Grouped by Body Region — Fusion ToF Multistream CNN")
+    ax.set_title(f"Accuracy Grouped by Body Region — {REPORT_MODEL_NAME}")
     for i, (region, row) in enumerate(region_acc.iterrows()):
         ax.text(row["accuracy"] + 0.01, i, f"{row['accuracy']:.0%}  (n={int(row['total'])})", va="center", fontsize=8)
     plt.tight_layout()
@@ -479,7 +529,7 @@ def analysis_roc_curves(all_labels, all_probs, target_names):
     for j in range(n_classes + 1, len(axes)):
         axes[j].set_visible(False)
 
-    plt.suptitle("One-vs-Rest ROC Curves per Gesture Class — Fusion ToF Multistream CNN", fontsize=12, y=1.01)
+    plt.suptitle(f"One-vs-Rest ROC Curves per Gesture Class — {REPORT_MODEL_NAME}", fontsize=12, y=1.01)
     plt.tight_layout()
     path_fig = os.path.join(ACTIVE_OUTPUT_DIR, "roc_curves.png")
     plt.savefig(path_fig, dpi=150, bbox_inches="tight")
@@ -518,8 +568,13 @@ def save_predictions(all_labels, all_preds, all_outputs, all_probs):
 
 
 def main(checkpoint_path=None, split="test", variant="baseline"):
-    global ACTIVE_OUTPUT_DIR
+    global ACTIVE_OUTPUT_DIR, REPORT_MODEL_NAME
     ACTIVE_OUTPUT_DIR = output_dir_for_split(split, variant)
+    REPORT_MODEL_NAME = (
+        "Fusion Thm+ToF Multistream CNN (finetune)"
+        if variant == "finetune"
+        else "Fusion ToF Multistream CNN (baseline)"
+    )
     if checkpoint_path is None:
         checkpoint_path = FINETUNE_CHECKPOINT_PATH if variant == "finetune" else TRIPLE_CHECKPOINT_PATH
     print(f"Loading model ({variant}) and {split} data... (checkpoint: {checkpoint_path}, output: {ACTIVE_OUTPUT_DIR})")
@@ -563,12 +618,14 @@ def _prompt_split() -> str:
 
 def _prompt_variant() -> str:
     while True:
-        raw = input("Model: [b]aseline or [f]inetune (default b): ").strip().lower()
+        raw = input(
+            "Model: [b]aseline (acc+rot+ToF) or [f]inetune Thm+ToF (default b): "
+        ).strip().lower()
         if raw in ("", "b", "baseline"):
             return "baseline"
         if raw in ("f", "finetune"):
             return "finetune"
-        print("Invalid choice. Enter 'b' for baseline or 'f' for finetune.")
+        print("Invalid choice. Enter 'b' for baseline or 'f' for Thm+ToF finetune.")
 
 
 if __name__ == "__main__":

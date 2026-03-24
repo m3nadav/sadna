@@ -1,21 +1,20 @@
 --- Analyzing Specific Misclassifications ---
 
 Top 10 Misclassified Pairs:
-1. True: 'Forehead - pull hairline' was misclassified as Predicted: 'Forehead - scratch' (Count: 36)
-2. True: 'Neck - scratch' was misclassified as Predicted: 'Neck - pinch skin' (Count: 34)
-3. True: 'Neck - pinch skin' was misclassified as Predicted: 'Above ear - pull hair' (Count: 25)
-4. True: 'Eyebrow - pull hair' was misclassified as Predicted: 'Eyelash - pull hair' (Count: 20)
-5. True: 'Eyelash - pull hair' was misclassified as Predicted: 'Cheek - pinch skin' (Count: 19)
-6. True: 'Eyebrow - pull hair' was misclassified as Predicted: 'Forehead - pull hairline' (Count: 18)
-7. True: 'Neck - scratch' was misclassified as Predicted: 'Above ear - pull hair' (Count: 18)
-8. True: 'Eyebrow - pull hair' was misclassified as Predicted: 'Forehead - scratch' (Count: 16)
-9. True: 'Forehead - pull hairline' was misclassified as Predicted: 'Cheek - pinch skin' (Count: 16)
-10. True: 'Forehead - scratch' was misclassified as Predicted: 'Forehead - pull hairline' (Count: 15)
+1. True: 'Forehead - pull hairline' was misclassified as Predicted: 'Neck - scratch' (Count: 54)
+2. True: 'Forehead - scratch' was misclassified as Predicted: 'Neck - scratch' (Count: 50)
+3. True: 'Eyebrow - pull hair' was misclassified as Predicted: 'Neck - scratch' (Count: 48)
+4. True: 'Cheek - pinch skin' was misclassified as Predicted: 'Neck - scratch' (Count: 47)
+5. True: 'Eyelash - pull hair' was misclassified as Predicted: 'Neck - scratch' (Count: 47)
+6. True: 'Write name in air' was misclassified as Predicted: 'Wave hello' (Count: 39)
+7. True: 'Neck - pinch skin' was misclassified as Predicted: 'Neck - scratch' (Count: 30)
+8. True: 'Text on phone' was misclassified as Predicted: 'Neck - scratch' (Count: 30)
+9. True: 'Above ear - pull hair' was misclassified as Predicted: 'Neck - scratch' (Count: 26)
+10. True: 'Text on phone' was misclassified as Predicted: 'Scratch knee/leg skin' (Count: 26)
 
 --- Key Observations from Misclassifications ---
 
-'Eyelash - pull hair' is a common misprediction target. Gestures like 'Eyebrow - pull hair', 'Cheek - pinch skin', 'Neck - pinch skin' are often mistaken for it.
-'Forehead - pull hairline' also gets confused with others, including 'Eyebrow - pull hair', 'Forehead - scratch', 'Neck - scratch'.
+'Eyelash - pull hair' is a common misprediction target. Gestures like 'Above ear - pull hair', 'Pull air toward your face', 'Write name in air' are often mistaken for it.
 
 Further analysis often involves looking for:
 - Reciprocal confusions (e.g., A mistaken for B, and B mistaken for A)
