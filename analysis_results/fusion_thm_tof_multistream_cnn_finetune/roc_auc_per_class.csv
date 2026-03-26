@@ -1,19 +1,19 @@
 Class,AUC
-Eyebrow - pull hair,0.8779589640842981
-Eyelash - pull hair,0.886186553873553
-Cheek - pinch skin,0.9013524042742653
-Neck - scratch,0.9113238349658652
-Forehead - pull hairline,0.9276120510537251
-Neck - pinch skin,0.9327693677649154
-Forehead - scratch,0.9388728109231226
-Above ear - pull hair,0.9615241911546453
-Write name in air,0.972112395872187
-Wave hello,0.97682436079894
-Scratch knee/leg skin,0.9801952580195257
-Write name on leg,0.9802998605299861
-Pinch knee/leg skin,0.9807880055788005
-Pull air toward your face,0.9843466368270546
-Glasses on/off,0.9882496513249652
-Drink from bottle/cup,0.9890864714086471
-Text on phone,0.9976996141288217
-Feel around in tray and pull out an object,0.9997210599721059
+Eyebrow - pull hair,0.8568937370139507
+Eyelash - pull hair,0.8697592015434847
+Neck - scratch,0.8729871623627189
+Cheek - pinch skin,0.9040423716236273
+Neck - pinch skin,0.9070569902048086
+Forehead - scratch,0.9288364499851588
+Forehead - pull hairline,0.9331218462451766
+Above ear - pull hair,0.9459502077767883
+Write name in air,0.9678105184632599
+Write name on leg,0.9694909344490935
+Wave hello,0.9759532806595672
+Pinch knee/leg skin,0.976115760111576
+Scratch knee/leg skin,0.9812761506276151
+Pull air toward your face,0.9836752455551411
+Text on phone,0.9945458593054319
+Glasses on/off,0.9956415620641562
+Drink from bottle/cup,0.9964435146443514
+Feel around in tray and pull out an object,0.9975592747559274

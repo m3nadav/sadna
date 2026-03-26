@@ -328,7 +328,7 @@ def main():
 
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.AdamW(model.parameters(), lr=0.001, weight_decay=1e-4)
-    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode="min", factor=0.8, patience=10)
+    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode="min", factor=0.8, patience=7)
 
     os.makedirs("models/deep_learning_models", exist_ok=True)
     save_path = "models/deep_learning_models/Multistream_CNN_thermal_only.pth"
@@ -353,7 +353,7 @@ def main():
         train_step,
         val_step,
         num_epochs=100,
-        early_stop_patience=15,
+        early_stop_patience=10,
         extra_checkpoint_keys={
             "thm_cols": thm_cols,
             "thm_mean": train_mean_raw.tolist(),

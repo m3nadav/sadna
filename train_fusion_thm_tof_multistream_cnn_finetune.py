@@ -4,7 +4,7 @@ Fine-tune Fusion + THM + ToF multistream: same data flow as train_fusion_tof_mul
 
 - Deeper/wider classification head: Linear → LayerNorm → ReLU → Dropout (×2 blocks) → logits.
 - Partial unfreeze: joint acc+rot backbone — train conv2_block + feature classifier stem; freeze acc_zscore + conv1.
-  ToF — train conv3 + truncated classifier (384→128); freeze conv1 + conv2.
+  ToF Conv3D — train conv3 + truncated classifier (384→128); freeze conv1 + conv2.
   THM — train fc1 + fc2 only (64-d features); freeze norm, conv blocks, fc3.
 
 Warm-starts from Fusion_ToF_Multistream_CNN.pth: shape-safe load; THM branch has no keys in that
@@ -41,7 +41,7 @@ from utils import (
 set_default_seeds()
 
 FUSION_CHECKPOINT_PATH = "models/deep_learning_models/Fusion_Multistream_CNN.pth"
-TOF_CHECKPOINT_PATH = "models/deep_learning_models/ToF_CNN.pth"
+TOF_CHECKPOINT_PATH = "models/deep_learning_models/ToF_CNN_Conv3D.pth"
 THM_CHECKPOINT_PATH = "models/deep_learning_models/Multistream_CNN_thermal_only.pth"
 TRIPLE_WARMSTART_PATH = "models/deep_learning_models/Fusion_ToF_Multistream_CNN.pth"
 SAVE_PATH = "models/deep_learning_models/Fusion_Thm_ToF_Multistream_CNN_finetune.pth"
@@ -59,7 +59,7 @@ LR_BACKBONE = 1e-5
 WEIGHT_DECAY = 1e-4
 
 from train_fusion_multistream_cnn import JointAccRotMultistreamNet, truncate_joint_classifier_to_features
-from train_tof_cnn import ToFCNN, get_tof_columns, _tof_frame_to_5x8x8, _normalize_tof_01, TOF_MAX
+from train_tof_cnn_conv3d import ToFCNN3D, get_tof_columns, _tof_frame_to_5x8x8, _normalize_tof_01, TOF_MAX
 from train_fusion_tof_multistream_cnn import (
     compute_sequence_sensor_stats,
     TRAIN_MODALITY_DROPOUT_ROT,
@@ -139,7 +139,7 @@ def make_joint_finetune_inertial(num_classes, checkpoint_path, device, trainset_
 
 
 def make_tof_finetune_extractor(num_classes, checkpoint_path, device, dropout_p=0.1):
-    """Truncated ToF → 128-d; freeze conv1–2, train conv3 + Linear(384,128)+PReLU."""
+    """Truncated ToF Conv3D → 128-d; freeze conv1–2, train conv3 + Linear(384,128)+PReLU."""
     ckpt = torch.load(checkpoint_path, map_location=device, weights_only=False)
     if isinstance(ckpt, dict) and "model_state_dict" in ckpt:
         sd = ckpt["model_state_dict"]
@@ -148,7 +148,7 @@ def make_tof_finetune_extractor(num_classes, checkpoint_path, device, dropout_p=
     else:
         sd = ckpt
         nc = num_classes
-    tof_model = ToFCNN(num_classes=nc, dropout_p=dropout_p)
+    tof_model = ToFCNN3D(num_classes=nc, dropout_p=dropout_p)
     tof_model.load_state_dict(sd)
     tof_model.classifier = nn.Sequential(
         tof_model.classifier[0],

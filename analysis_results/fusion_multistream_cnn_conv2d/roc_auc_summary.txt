@@ -1,22 +1,22 @@
-Macro-average AUC: 0.9137
+Macro-average AUC: 0.8940
 
 Per-class AUC (lowest first):
                                      Class      AUC
-                       Eyelash - pull hair 0.790229
-                       Eyebrow - pull hair 0.795127
-                         Neck - pinch skin 0.802083
-                        Cheek - pinch skin 0.808001
-                            Neck - scratch 0.831914
-                  Forehead - pull hairline 0.833751
-                     Above ear - pull hair 0.879072
-                        Forehead - scratch 0.888431
-                         Write name in air 0.951448
-                     Scratch knee/leg skin 0.974093
-                                Wave hello 0.976738
-                         Write name on leg 0.977197
-                       Pinch knee/leg skin 0.978522
-                 Pull air toward your face 0.982967
-Feel around in tray and pull out an object 0.989261
-                             Text on phone 0.991105
-                            Glasses on/off 0.993515
-                     Drink from bottle/cup 0.996722
+                       Eyebrow - pull hair 0.760259
+                       Eyelash - pull hair 0.764127
+                            Neck - scratch 0.766260
+                        Cheek - pinch skin 0.783968
+                         Neck - pinch skin 0.794051
+                  Forehead - pull hairline 0.797065
+                     Above ear - pull hair 0.842062
+                        Forehead - scratch 0.858703
+                         Write name in air 0.927378
+                                Wave hello 0.963795
+                         Write name on leg 0.967852
+                 Pull air toward your face 0.968382
+                       Pinch knee/leg skin 0.972280
+                     Scratch knee/leg skin 0.972838
+                             Text on phone 0.977683
+Feel around in tray and pull out an object 0.979951
+                            Glasses on/off 0.992852
+                     Drink from bottle/cup 0.994805

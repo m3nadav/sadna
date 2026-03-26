@@ -1,5 +1,5 @@
 """
-Analyze ToF_CNN model: same evaluations as analyze_multistream_cnn.py
+Analyze ToF_CNN_Conv3D model: same evaluations as analyze_multistream_cnn.py
 (classification report, confusion matrix, misclassifications, per-class metrics,
 confidence, region accuracy, ROC/AUC, predictions.npz).
 
@@ -25,19 +25,19 @@ from sklearn.metrics import (
 )
 from sklearn.preprocessing import label_binarize
 
-from train_tof_cnn import (
+from train_tof_cnn_conv3d import (
     load_train_data,
     final_robust_split,
     apply_label_encoding,
     BFRB_GESTURES,
     get_tof_columns,
-    ToFCNN,
+    ToFCNN3D,
     ToFSequenceDataset,
     collate_tof,
 )
 
-CHECKPOINT_PATH = "models/deep_learning_models/ToF_CNN.pth"
-OUTPUT_DIR = "analysis_results/tof_cnn"
+CHECKPOINT_PATH = "models/deep_learning_models/ToF_CNN_Conv3D.pth"
+OUTPUT_DIR = "analysis_results/tof_cnn_conv3d"
 
 
 def ensure_output_dir():
@@ -72,10 +72,10 @@ def load_model_and_data(checkpoint_path=CHECKPOINT_PATH):
     if isinstance(ckpt, dict) and "model_state_dict" in ckpt:
         nc = ckpt.get("num_classes", num_classes)
         dropout_p = ckpt.get("dropout_p", 0.1)
-        model = ToFCNN(num_classes=nc, dropout_p=dropout_p)
+        model = ToFCNN3D(num_classes=nc, dropout_p=dropout_p)
         model.load_state_dict(ckpt["model_state_dict"])
     else:
-        model = ToFCNN(num_classes=num_classes, dropout_p=dropout_p)
+        model = ToFCNN3D(num_classes=num_classes, dropout_p=dropout_p)
         model.load_state_dict(ckpt)
     model = model.to(device)
     model.eval()
@@ -114,7 +114,7 @@ def analysis_classification_report_and_cm(all_labels, all_preds, target_names):
     report = classification_report(all_labels, all_preds, target_names=target_names)
     path_txt = os.path.join(OUTPUT_DIR, "classification_report.txt")
     with open(path_txt, "w") as f:
-        f.write("Test Set Performance Analysis (ToF CNN)\n")
+        f.write("Test Set Performance Analysis (ToF CNN Conv3D)\n")
         f.write("=" * 60 + "\n\n")
         f.write(report)
     print(f"Saved: {path_txt}")
@@ -129,7 +129,7 @@ def analysis_classification_report_and_cm(all_labels, all_preds, target_names):
         yticklabels=target_names,
         cmap="viridis",
     )
-    plt.title("Confusion Matrix: ToF CNN — BFRB vs. Non-BFRB Gestures")
+    plt.title("Confusion Matrix: ToF CNN Conv3D — BFRB vs. Non-BFRB Gestures")
     plt.ylabel("True Gesture")
     plt.xlabel("Predicted Gesture")
     path_fig = os.path.join(OUTPUT_DIR, "confusion_matrix.png")
@@ -230,7 +230,7 @@ def analysis_per_class_metrics(all_labels, all_preds, target_names):
     ax.set_xlim(0, 1.05)
     ax.axvline(0.5, color="gray", linestyle="--", linewidth=0.8, alpha=0.6)
     ax.set_xlabel("Score")
-    ax.set_title("Per-Class Precision, Recall & F1 (sorted by F1) — ToF CNN")
+    ax.set_title("Per-Class Precision, Recall & F1 (sorted by F1) — ToF CNN Conv3D")
     ax.legend()
     plt.tight_layout()
     path_fig = os.path.join(OUTPUT_DIR, "per_class_precision_recall_f1.png")
@@ -346,7 +346,7 @@ def analysis_region_accuracy(all_labels, all_preds, target_names):
     ax.axvline(0.5, color="gray", linestyle="--", linewidth=0.8)
     ax.set_xlim(0, 1.05)
     ax.set_xlabel("Accuracy")
-    ax.set_title("Accuracy Grouped by Body Region — ToF CNN")
+    ax.set_title("Accuracy Grouped by Body Region — ToF CNN Conv3D")
     for i, (region, row) in enumerate(region_acc.iterrows()):
         ax.text(row["accuracy"] + 0.01, i, f"{row['accuracy']:.0%}  (n={int(row['total'])})", va="center", fontsize=8)
     plt.tight_layout()
@@ -412,7 +412,7 @@ def analysis_roc_curves(all_labels, all_probs, target_names):
     for j in range(n_classes + 1, len(axes)):
         axes[j].set_visible(False)
 
-    plt.suptitle("One-vs-Rest ROC Curves per Gesture Class — ToF CNN", fontsize=12, y=1.01)
+    plt.suptitle("One-vs-Rest ROC Curves per Gesture Class — ToF CNN Conv3D", fontsize=12, y=1.01)
     plt.tight_layout()
     path_fig = os.path.join(OUTPUT_DIR, "roc_curves.png")
     plt.savefig(path_fig, dpi=150, bbox_inches="tight")

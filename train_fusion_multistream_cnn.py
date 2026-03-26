@@ -199,7 +199,7 @@ def main():
         weight_decay=1e-4,
     )
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(
-        optimizer, mode="min", factor=0.8, patience=10
+        optimizer, mode="min", factor=0.8, patience=7
     )
 
     os.makedirs("models/deep_learning_models", exist_ok=True)
@@ -245,7 +245,7 @@ def main():
         train_step,
         val_step,
         num_epochs=100,
-        early_stop_patience=15,
+        early_stop_patience=10,
     )
     return model, history, le
 

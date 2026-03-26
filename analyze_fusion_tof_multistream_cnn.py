@@ -61,6 +61,7 @@ from train_fusion_thm_tof_multistream_cnn_finetune import (
     HEAD_HIDDEN_DIMS,
     HEAD_DROPOUT,
     THM_CHECKPOINT_PATH,
+    TOF_CHECKPOINT_PATH as FINETUNE_TOF_CHECKPOINT_PATH,
     SAVE_PATH as THM_TOF_FINETUNE_SAVE_PATH,
     AccRotToFThmSequenceDataset,
     collate_acc_rot_tof_thm,
@@ -147,11 +148,11 @@ def load_model_and_data(
 
         print(
             f"Building Thm+ToF finetune model (deep head + partial-unfreeze) from "
-            f"{FUSION_CHECKPOINT_PATH} + {TOF_CHECKPOINT_PATH} + {THM_CHECKPOINT_PATH}, "
+            f"{FUSION_CHECKPOINT_PATH} + {FINETUNE_TOF_CHECKPOINT_PATH} + {THM_CHECKPOINT_PATH}, "
             f"weights from {checkpoint_path}..."
         )
         joint_partial = make_fusion_finetune_128(num_classes, FUSION_CHECKPOINT_PATH, device, trainset_df)
-        tof_feat = make_tof_finetune_extractor(num_classes, TOF_CHECKPOINT_PATH, device)
+        tof_feat = make_tof_finetune_extractor(num_classes, FINETUNE_TOF_CHECKPOINT_PATH, device)
         thm_feat = make_thm_finetune_extractor(
             num_classes, THM_CHECKPOINT_PATH, device, trainset_df=trainset_df, thm_cols=thm_cols
         )

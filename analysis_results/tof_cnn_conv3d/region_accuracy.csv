@@ -1,0 +1,17 @@
+true_region,correct,total,accuracy
+Pinch knee/leg skin,1,24,0.041666666666666664
+Scratch knee/leg skin,4,24,0.16666666666666666
+Write name in air,20,70,0.2857142857142857
+Eyebrow,29,96,0.3020833333333333
+Pull air toward your face,23,70,0.32857142857142857
+Write name on leg,8,24,0.3333333333333333
+Cheek,40,96,0.4166666666666667
+Neck,87,192,0.453125
+Eyelash,46,96,0.4791666666666667
+Drink from bottle/cup,12,24,0.5
+Forehead,103,192,0.5364583333333334
+Glasses on/off,15,24,0.625
+Wave hello,45,71,0.6338028169014085
+Above ear,68,96,0.7083333333333334
+Feel around in tray and pull out an object,17,24,0.7083333333333334
+Text on phone,71,96,0.7395833333333334

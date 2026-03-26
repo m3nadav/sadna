@@ -1,19 +1,19 @@
 Per-region accuracy table:
                                             correct  total  accuracy
 true_region                                                         
-Cheek                                             0     96  0.000000
-Feel around in tray and pull out an object        0     24  0.000000
-Pull air toward your face                         0     70  0.000000
-Write name in air                                 0     70  0.000000
-Forehead                                          1    192  0.005208
-Eyebrow                                           1     96  0.010417
-Above ear                                         2     96  0.020833
-Eyelash                                           2     96  0.020833
-Pinch knee/leg skin                               1     24  0.041667
-Drink from bottle/cup                             2     24  0.083333
-Text on phone                                    16     96  0.166667
-Write name on leg                                 4     24  0.166667
-Neck                                             45    192  0.234375
-Glasses on/off                                    8     24  0.333333
-Scratch knee/leg skin                            13     24  0.541667
-Wave hello                                       47     71  0.661972
+Write name on leg                                 0     24  0.000000
+Eyebrow                                          25     96  0.260417
+Scratch knee/leg skin                             7     24  0.291667
+Forehead                                         57    192  0.296875
+Neck                                             59    192  0.307292
+Cheek                                            38     96  0.395833
+Eyelash                                          39     96  0.406250
+Above ear                                        41     96  0.427083
+Write name in air                                48     70  0.685714
+Wave hello                                       54     71  0.760563
+Drink from bottle/cup                            19     24  0.791667
+Pull air toward your face                        57     70  0.814286
+Feel around in tray and pull out an object       20     24  0.833333
+Text on phone                                    82     96  0.854167
+Pinch knee/leg skin                              22     24  0.916667
+Glasses on/off                                   23     24  0.958333

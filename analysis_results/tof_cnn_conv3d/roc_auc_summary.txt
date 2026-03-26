@@ -1,0 +1,22 @@
+Macro-average AUC: 0.9142
+
+Per-class AUC (lowest first):
+                                     Class      AUC
+                       Eyebrow - pull hair 0.816247
+                       Eyelash - pull hair 0.831970
+                        Cheek - pinch skin 0.845754
+                        Forehead - scratch 0.899933
+                            Neck - scratch 0.900944
+                     Scratch knee/leg skin 0.904707
+                  Forehead - pull hairline 0.909339
+                     Above ear - pull hair 0.913550
+                         Neck - pinch skin 0.915470
+                                Wave hello 0.924731
+                       Pinch knee/leg skin 0.927545
+                         Write name in air 0.927875
+                         Write name on leg 0.934170
+                             Text on phone 0.938075
+                 Pull air toward your face 0.938356
+                     Drink from bottle/cup 0.953103
+                            Glasses on/off 0.971688
+Feel around in tray and pull out an object 0.993863
