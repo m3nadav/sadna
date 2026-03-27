@@ -201,24 +201,25 @@ def run_evaluation(model, test_loader, device):
     with torch.no_grad():
         for batch in test_loader:
             if quad_modal:
-                acc, rot, rot_mask, tof_padded, lengths, thm_padded, has_rot, has_tof, has_thm, labels = batch
+                acc, rot, rot_mask, pad_mask, tof_padded, lengths, thm_padded, has_rot, has_tof, has_thm, labels = batch
                 thm_padded = thm_padded.to(device)
                 has_thm = has_thm.to(device)
             else:
-                acc, rot, rot_mask, tof_padded, lengths, has_rot, has_tof, labels = batch
+                acc, rot, rot_mask, pad_mask, tof_padded, lengths, has_rot, has_tof, labels = batch
             acc = acc.to(device)
             rot = rot.to(device)
             rot_mask = rot_mask.to(device)
+            pad_mask = pad_mask.to(device)
             tof_padded = tof_padded.to(device)
             lengths = lengths.to(device)
             has_rot = has_rot.to(device)
             has_tof = has_tof.to(device)
             if quad_modal:
                 outputs = model(
-                    acc, rot, rot_mask, tof_padded, lengths, thm_padded, has_rot, has_tof, has_thm
+                    acc, rot, rot_mask, pad_mask, tof_padded, lengths, thm_padded, has_rot, has_tof, has_thm
                 )
             else:
-                outputs = model(acc, rot, rot_mask, tof_padded, lengths, has_rot, has_tof)
+                outputs = model(acc, rot, rot_mask, pad_mask, tof_padded, lengths, has_rot, has_tof)
             all_outputs.extend(outputs.cpu().numpy())
             _, predicted = torch.max(outputs.data, 1)
             all_preds.extend(predicted.cpu().numpy())

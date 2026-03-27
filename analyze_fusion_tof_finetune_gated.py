@@ -72,6 +72,7 @@ def run_gated_evaluation(model, specialists: dict, blocks: list, loader, device)
         acc,
         rot,
         rot_mask,
+        pad_mask,
         tof_padded,
         lengths,
         thm_padded,
@@ -83,6 +84,7 @@ def run_gated_evaluation(model, specialists: dict, blocks: list, loader, device)
         acc = acc.to(device)
         rot = rot.to(device)
         rot_mask = rot_mask.to(device)
+        pad_mask = pad_mask.to(device)
         tof_padded = tof_padded.to(device)
         lengths = lengths.to(device)
         thm_padded = thm_padded.to(device)
@@ -92,7 +94,7 @@ def run_gated_evaluation(model, specialists: dict, blocks: list, loader, device)
         labels = labels.to(device)
 
         outputs = model(
-            acc, rot, rot_mask, tof_padded, lengths, thm_padded, has_rot, has_tof, has_thm
+            acc, rot, rot_mask, pad_mask, tof_padded, lengths, thm_padded, has_rot, has_tof, has_thm
         )
         probs = F.softmax(outputs, dim=1)
         top2 = torch.topk(probs, k=2, dim=1)
@@ -100,7 +102,7 @@ def run_gated_evaluation(model, specialists: dict, blocks: list, loader, device)
         c1, c2 = top2.indices[:, 0], top2.indices[:, 1]
         margin = p1 - p2
         z = model.fused_features(
-            acc, rot, rot_mask, tof_padded, lengths, thm_padded, has_rot, has_tof, has_thm
+            acc, rot, rot_mask, pad_mask, tof_padded, lengths, thm_padded, has_rot, has_tof, has_thm
         )
 
         pred_main = outputs.argmax(dim=1)

@@ -34,17 +34,7 @@ set_default_seeds()
 # ---------------------------------------------------------------------------
 # Model: MinMaxNormalize + MultistreamCNNRotNet (mirrors acc-only architecture)
 # ---------------------------------------------------------------------------
-class MinMaxNormalize(nn.Module):
-    """Custom layer to scale inputs to [0, 1] based on provided bounds."""
-
-    def __init__(self, min_val, max_val):
-        super(MinMaxNormalize, self).__init__()
-        self.min_val = min_val
-        self.max_val = max_val
-
-    def forward(self, x):
-        x = torch.clamp(x, self.min_val, self.max_val)
-        return x
+from train_fusion_multistream_cnn import MinMaxNormalize
 
 
 class MultistreamCNNRotNet(nn.Module):

@@ -10,34 +10,7 @@ from torch import nn
 
 RANDOM_STATE = 42
 ACC_COLS = ["acc_x", "acc_y", "acc_z"]
-ZSCORE_EPS = 1e-6
 ROT_COLS = ["rot_x", "rot_y", "rot_z", "rot_w"]
-# Unit quaternion: L2 norm within [1 - tol, 1 + tol] (per row, all rot_cols components finite).
-ROT_QUAT_UNIT_NORM_TOL = 1e-6
-
-
-def quat_row_valid_mask(rot_rows_xyzw):
-    """
-    Per-timestep quaternion validity: finite components and L2 norm within ROT_QUAT_UNIT_NORM_TOL of 1.
-
-    Parameters
-    ----------
-    rot_rows_xyzw : np.ndarray
-        Shape (T, 4) — rows are (rot_x, rot_y, rot_z, rot_w) per timestep (same order as ROT_COLS).
-
-    Returns
-    -------
-    np.ndarray
-        Shape (T,), dtype bool. Padding positions in batched tensors should use 0 in the mask after pad.
-    """
-    sub = np.asarray(rot_rows_xyzw, dtype=np.float64)
-    if sub.size == 0:
-        return np.zeros((0,), dtype=bool)
-    if sub.ndim != 2 or sub.shape[1] != 4:
-        raise ValueError(f"quat_row_valid_mask expects (T, 4), got {sub.shape}")
-    norms = np.linalg.norm(sub, axis=1)
-    return np.isfinite(norms) & (np.abs(norms - 1.0) <= ROT_QUAT_UNIT_NORM_TOL)
-
 
 BFRB_GESTURES = [
     "Above ear - pull hair",
@@ -63,15 +36,22 @@ def set_default_seeds(random_state=RANDOM_STATE):
     torch.manual_seed(random_state)
 
 
-def compute_acc_zscore_stats(trainset_df, cols=None):
-    """Per-channel mean and population std (ddof=0) on all training rows."""
-    if cols is None:
-        cols = ACC_COLS
-    sub = trainset_df[cols]
-    mean = sub.mean(axis=0).to_numpy(dtype=np.float32)
-    std = sub.std(axis=0, ddof=0).to_numpy(dtype=np.float32)
-    std = np.maximum(std, ZSCORE_EPS)
-    return mean, std
+_SENSOR_PREPROCESS_REEXPORTS = frozenset({
+    "ZSCORE_EPS",
+    "ROT_QUAT_UNIT_NORM_TOL",
+    "ZScoreNormalize",
+    "MinMaxNormalize",
+    "compute_acc_zscore_stats",
+    "quat_row_valid_mask",
+})
+
+
+def __getattr__(name):
+    """Lazy re-export of sensor preprocessing symbols from train_fusion_multistream_cnn."""
+    if name in _SENSOR_PREPROCESS_REEXPORTS:
+        import train_fusion_multistream_cnn as _tfmc
+        return getattr(_tfmc, name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 def load_train_data():
@@ -142,7 +122,7 @@ def filter_sequences_by_sensor_validity(
     Keep sequences that satisfy every non-None sensor rule (AND across rules):
 
     - **rot_cols**: at least one timestep has a finite quaternion whose Euclidean norm is within
-      ``ROT_QUAT_UNIT_NORM_TOL`` of 1 (i.e. approximately a unit quaternion).
+      1e-6 of 1 (i.e. approximately a unit quaternion).
     - **tof_cols**: at least one ToF cell is not ``-1`` somewhere in the sequence (any sensor/pixel).
     - **thm_cols**: at least one thermal column has more than one distinct value over the sequence
       (``nunique(dropna=True) > 1``).
@@ -167,7 +147,7 @@ def filter_sequences_by_sensor_validity(
         if sub.size == 0:
             return False
         norms = np.linalg.norm(sub, axis=1)
-        unit_row = np.isfinite(norms) & (np.abs(norms - 1.0) <= ROT_QUAT_UNIT_NORM_TOL)
+        unit_row = np.isfinite(norms) & (np.abs(norms - 1.0) <= 1e-6)
         return bool(unit_row.any())
 
     def _tof_ok(g):
@@ -190,22 +170,6 @@ def filter_sequences_by_sensor_validity(
     valid_seq_ids = keep[keep].index.tolist()
     out = df[df[sequence_id_col].isin(valid_seq_ids)].reset_index(drop=True)
     return out, valid_seq_ids
-
-
-class ZScoreNormalize(nn.Module):
-    """Per-channel z-score; mean/std from training data, stored as buffers for checkpointing."""
-
-    def __init__(self, mean, std, eps=ZSCORE_EPS):
-        super().__init__()
-        mean_t = torch.as_tensor(mean, dtype=torch.float32).reshape(-1)
-        std_t = torch.as_tensor(std, dtype=torch.float32).reshape(-1).clamp_min(eps)
-        self.register_buffer("mean", mean_t)
-        self.register_buffer("std", std_t)
-
-    def forward(self, x):
-        m = self.mean.view(1, -1, 1)
-        s = self.std.view(1, -1, 1)
-        return (x - m) / s
 
 
 def _add_input_zscore_to_checkpoint(checkpoint, model):
@@ -299,7 +263,7 @@ def make_supervised_single_tensor_batch_steps(
         outputs = model(x)
         loss = criterion(outputs, labels)
         loss.backward()
-        torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=grad_clip_max_norm)
+        #torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=grad_clip_max_norm)
         optimizer.step()
         batch_acc = (outputs.argmax(1) == labels).float().mean()
         return loss.item(), batch_acc.item()

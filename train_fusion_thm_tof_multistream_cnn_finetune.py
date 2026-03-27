@@ -113,8 +113,8 @@ class JointPartialUnfreeze(nn.Module):
         for p in self.joint.classifier.parameters():
             p.requires_grad = True
 
-    def forward(self, acc, rot, rot_mask):
-        return self.joint(acc, rot, rot_mask)
+    def forward(self, acc, rot, rot_mask, pad_mask=None):
+        return self.joint(acc, rot, rot_mask, pad_mask)
 
 
 def make_joint_finetune_inertial(num_classes, checkpoint_path, device, trainset_df=None):
@@ -309,9 +309,14 @@ def collate_acc_rot_tof_thm(train_mean_raw):
 
     def collate_fn(batch):
         accs, rots, masks, tofs, thms, has_rots, has_tofs, has_thms, labels = zip(*batch)
+        acc_lengths = [a.shape[1] for a in accs]
         acc_padded = pad_sequence([a.T for a in accs], batch_first=True, padding_value=0).transpose(1, 2)
         rot_padded = pad_sequence([r.T for r in rots], batch_first=True, padding_value=0).transpose(1, 2)
         mask_padded = pad_sequence([m.T for m in masks], batch_first=True, padding_value=0).transpose(1, 2)
+        max_len = acc_padded.shape[2]
+        pad_mask = torch.zeros(len(acc_lengths), 1, max_len)
+        for i, l in enumerate(acc_lengths):
+            pad_mask[i, :, :l] = 1.0
         tof_padded = pad_sequence(list(tofs), batch_first=True, padding_value=0.0)
         lengths = torch.tensor([t.shape[0] for t in tofs], dtype=torch.long)
 
@@ -330,6 +335,7 @@ def collate_acc_rot_tof_thm(train_mean_raw):
             acc_padded,
             rot_padded,
             mask_padded,
+            pad_mask,
             tof_padded,
             lengths,
             thm_padded,
@@ -390,7 +396,7 @@ class ThmToFFusionMultistreamCNNDeepFinetune(nn.Module):
         self.train_dropout_tof = TRAIN_MODALITY_DROPOUT_TOF
         self.train_dropout_thm = TRAIN_MODALITY_DROPOUT_THM
 
-    def forward(self, acc, rot, rot_mask, tof_padded, lengths, thm_padded, has_rot, has_tof, has_thm):
+    def forward(self, acc, rot, rot_mask, pad_mask, tof_padded, lengths, thm_padded, has_rot, has_tof, has_thm):
         B = acc.shape[0]
         device = acc.device
         dtype = acc.dtype
@@ -414,7 +420,7 @@ class ThmToFFusionMultistreamCNNDeepFinetune(nn.Module):
 
         has_rot_f = has_rot.to(dtype=dtype, device=device).view(B, 1, 1)
         rot_mask_eff = rot_mask.to(device=device, dtype=dtype) * has_rot_f
-        fr = self.joint_partial(acc, rot, rot_mask_eff)
+        fr = self.joint_partial(acc, rot, rot_mask_eff, pad_mask)
 
         tf = torch.zeros(B, TOF_FEAT_DIM, device=device, dtype=dtype)
         if has_tof.any():
@@ -435,7 +441,7 @@ class ThmToFFusionMultistreamCNNDeepFinetune(nn.Module):
         x = torch.cat([fr, tf, hf], dim=1)
         return self.fusion_classifier(x)
 
-    def fused_features(self, acc, rot, rot_mask, tof_padded, lengths, thm_padded, has_rot, has_tof, has_thm):
+    def fused_features(self, acc, rot, rot_mask, pad_mask, tof_padded, lengths, thm_padded, has_rot, has_tof, has_thm):
         """Fused dim before fusion_classifier (eval-friendly when not training)."""
         B = acc.shape[0]
         device = acc.device
@@ -460,7 +466,7 @@ class ThmToFFusionMultistreamCNNDeepFinetune(nn.Module):
 
         has_rot_f = has_rot.to(dtype=dtype, device=device).view(B, 1, 1)
         rot_mask_eff = rot_mask.to(device=device, dtype=dtype) * has_rot_f
-        fr = self.joint_partial(acc, rot, rot_mask_eff)
+        fr = self.joint_partial(acc, rot, rot_mask_eff, pad_mask)
 
         tf = torch.zeros(B, TOF_FEAT_DIM, device=device, dtype=dtype)
         if has_tof.any():
@@ -653,10 +659,11 @@ def main():
     thm_bounds = (THM_MIN_C, THM_MAX_C)
 
     def train_step(batch):
-        acc, rot, rot_mask, tof_padded, lengths, thm_padded, has_rot, has_tof, has_thm, labels = batch
+        acc, rot, rot_mask, pad_mask, tof_padded, lengths, thm_padded, has_rot, has_tof, has_thm, labels = batch
         acc = acc.to(device)
         rot = rot.to(device)
         rot_mask = rot_mask.to(device)
+        pad_mask = pad_mask.to(device)
         tof_padded = tof_padded.to(device)
         lengths = lengths.to(device)
         thm_padded = thm_padded.to(device)
@@ -665,7 +672,7 @@ def main():
         has_thm = has_thm.to(device)
         labels = labels.to(device)
         outputs = model(
-            acc, rot, rot_mask, tof_padded, lengths, thm_padded, has_rot, has_tof, has_thm
+            acc, rot, rot_mask, pad_mask, tof_padded, lengths, thm_padded, has_rot, has_tof, has_thm
         )
         loss = criterion(outputs, labels)
         loss.backward()
@@ -677,10 +684,11 @@ def main():
         return loss.item(), batch_acc.item()
 
     def val_step(batch):
-        v_acc, v_rot, v_rm, v_tof, v_len, v_thm, v_hr, v_ht, v_hth, v_labels = batch
+        v_acc, v_rot, v_rm, v_pm, v_tof, v_len, v_thm, v_hr, v_ht, v_hth, v_labels = batch
         v_acc = v_acc.to(device)
         v_rot = v_rot.to(device)
         v_rm = v_rm.to(device)
+        v_pm = v_pm.to(device)
         v_tof = v_tof.to(device)
         v_len = v_len.to(device)
         v_thm = v_thm.to(device)
@@ -689,7 +697,7 @@ def main():
         v_hth = v_hth.to(device)
         v_labels = v_labels.to(device)
         val_outputs = model(
-            v_acc, v_rot, v_rm, v_tof, v_len, v_thm, v_hr, v_ht, v_hth
+            v_acc, v_rot, v_rm, v_pm, v_tof, v_len, v_thm, v_hr, v_ht, v_hth
         )
         return criterion(val_outputs, v_labels).item(), (
             val_outputs.argmax(1) == v_labels

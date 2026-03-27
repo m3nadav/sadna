@@ -114,7 +114,7 @@ def compute_sequence_sensor_stats(df, tof_cols, split_name=""):
 # Frozen 64-dim joint inertial extractor from trained Fusion_Multistream_CNN (joint arch)
 # ---------------------------------------------------------------------------
 class JointFrozenInertial(nn.Module):
-    """Frozen truncated JointAccRotMultistreamNet; forward(acc, rot, rot_mask) -> (B, 64)."""
+    """Frozen truncated JointAccRotMultistreamNet; forward(acc, rot, rot_mask, pad_mask) -> (B, 64)."""
 
     def __init__(self, joint_net: JointAccRotMultistreamNet):
         super().__init__()
@@ -122,8 +122,8 @@ class JointFrozenInertial(nn.Module):
         for p in self.parameters():
             p.requires_grad = False
 
-    def forward(self, acc, rot, rot_mask):
-        return self.joint(acc, rot, rot_mask)
+    def forward(self, acc, rot, rot_mask, pad_mask=None):
+        return self.joint(acc, rot, rot_mask, pad_mask)
 
 
 def make_joint_frozen_inertial(num_classes, checkpoint_path, device, trainset_df=None):
@@ -194,9 +194,10 @@ class ToFFusionMultistreamCNN(nn.Module):
         self.train_dropout_rot = TRAIN_MODALITY_DROPOUT_ROT
         self.train_dropout_tof = TRAIN_MODALITY_DROPOUT_TOF
 
-    def forward(self, acc, rot, rot_mask, tof_padded, lengths, has_rot, has_tof):
+    def forward(self, acc, rot, rot_mask, pad_mask, tof_padded, lengths, has_rot, has_tof):
         """
         rot_mask: (B, 1, T) float 0/1 per-timestep valid quat (before has_rot gating).
+        pad_mask: (B, 1, T) float 0/1 — 1 for real timesteps, 0 for batch-padding.
         has_rot, has_tof: (B,) bool — sequence-level sensor presence.
         """
         B = acc.shape[0]
@@ -217,7 +218,7 @@ class ToFFusionMultistreamCNN(nn.Module):
         has_rot_f = has_rot.to(dtype=dtype, device=device).view(B, 1, 1)
         rot_mask_eff = rot_mask.to(device=device, dtype=dtype) * has_rot_f
 
-        inertial = self.joint_inertial(acc, rot, rot_mask_eff)
+        inertial = self.joint_inertial(acc, rot, rot_mask_eff, pad_mask)
 
         tf = torch.zeros(B, TOF_FEAT_DIM, device=device, dtype=dtype)
         if has_tof.any():
@@ -281,9 +282,14 @@ class AccRotToFSequenceDataset(Dataset):
 
 def collate_acc_rot_tof(batch):
     accs, rots, masks, tofs, has_rots, has_tofs, labels = zip(*batch)
+    acc_lengths = [a.shape[1] for a in accs]
     acc_padded = pad_sequence([a.T for a in accs], batch_first=True, padding_value=0).transpose(1, 2)
     rot_padded = pad_sequence([r.T for r in rots], batch_first=True, padding_value=0).transpose(1, 2)
     mask_padded = pad_sequence([m.T for m in masks], batch_first=True, padding_value=0).transpose(1, 2)
+    max_len = acc_padded.shape[2]
+    pad_mask = torch.zeros(len(acc_lengths), 1, max_len)
+    for i, l in enumerate(acc_lengths):
+        pad_mask[i, :, :l] = 1.0
     tof_padded = pad_sequence(list(tofs), batch_first=True, padding_value=0.0)
     lengths = torch.tensor([t.shape[0] for t in tofs], dtype=torch.long)
     has_rot_b = torch.stack(list(has_rots))
@@ -293,6 +299,7 @@ def collate_acc_rot_tof(batch):
         acc_padded,
         rot_padded,
         mask_padded,
+        pad_mask,
         tof_padded,
         lengths,
         has_rot_b,
@@ -385,16 +392,17 @@ def main():
     save_path = "models/deep_learning_models/Fusion_ToF_Multistream_CNN.pth"
 
     def train_step(batch):
-        acc, rot, rot_mask, tof_padded, lengths, has_rot, has_tof, labels = batch
+        acc, rot, rot_mask, pad_mask, tof_padded, lengths, has_rot, has_tof, labels = batch
         acc = acc.to(device)
         rot = rot.to(device)
         rot_mask = rot_mask.to(device)
+        pad_mask = pad_mask.to(device)
         tof_padded = tof_padded.to(device)
         lengths = lengths.to(device)
         has_rot = has_rot.to(device)
         has_tof = has_tof.to(device)
         labels = labels.to(device)
-        outputs = model(acc, rot, rot_mask, tof_padded, lengths, has_rot, has_tof)
+        outputs = model(acc, rot, rot_mask, pad_mask, tof_padded, lengths, has_rot, has_tof)
         loss = criterion(outputs, labels)
         loss.backward()
         torch.nn.utils.clip_grad_norm_(
@@ -405,16 +413,17 @@ def main():
         return loss.item(), batch_acc.item()
 
     def val_step(batch):
-        v_acc, v_rot, v_rm, v_tof, v_len, v_hr, v_ht, v_labels = batch
+        v_acc, v_rot, v_rm, v_pm, v_tof, v_len, v_hr, v_ht, v_labels = batch
         v_acc = v_acc.to(device)
         v_rot = v_rot.to(device)
         v_rm = v_rm.to(device)
+        v_pm = v_pm.to(device)
         v_tof = v_tof.to(device)
         v_len = v_len.to(device)
         v_hr = v_hr.to(device)
         v_ht = v_ht.to(device)
         v_labels = v_labels.to(device)
-        val_outputs = model(v_acc, v_rot, v_rm, v_tof, v_len, v_hr, v_ht)
+        val_outputs = model(v_acc, v_rot, v_rm, v_pm, v_tof, v_len, v_hr, v_ht)
         return criterion(val_outputs, v_labels).item(), (
             val_outputs.argmax(1) == v_labels
         ).float().mean().item()

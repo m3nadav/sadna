@@ -99,11 +99,12 @@ def run_evaluation(model, test_loader, device):
     all_outputs = []
 
     with torch.no_grad():
-        for acc, rot, rot_mask, labels in test_loader:
+        for acc, rot, rot_mask, pad_mask, labels in test_loader:
             acc = acc.to(device)
             rot = rot.to(device)
             rot_mask = rot_mask.to(device)
-            outputs = model(acc, rot, rot_mask)
+            pad_mask = pad_mask.to(device)
+            outputs = model(acc, rot, rot_mask, pad_mask)
             all_outputs.extend(outputs.cpu().numpy())
             _, predicted = torch.max(outputs.data, 1)
             all_preds.extend(predicted.cpu().numpy())

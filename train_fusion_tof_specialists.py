@@ -199,6 +199,7 @@ def forward_fused_features(
     acc,
     rot,
     rot_mask,
+    pad_mask,
     tof_padded,
     lengths,
     thm_padded,
@@ -210,6 +211,7 @@ def forward_fused_features(
     acc = acc.to(device)
     rot = rot.to(device)
     rot_mask = rot_mask.to(device)
+    pad_mask = pad_mask.to(device)
     tof_padded = tof_padded.to(device)
     lengths = lengths.to(device)
     thm_padded = thm_padded.to(device)
@@ -217,7 +219,7 @@ def forward_fused_features(
     has_tof = has_tof.to(device)
     has_thm = has_thm.to(device)
     return backbone.fused_features(
-        acc, rot, rot_mask, tof_padded, lengths, thm_padded, has_rot, has_tof, has_thm
+        acc, rot, rot_mask, pad_mask, tof_padded, lengths, thm_padded, has_rot, has_tof, has_thm
     )
 
 
@@ -307,12 +309,12 @@ def train_one_specialist(
         tr_loss = 0.0
         tr_n = 0
         tr_acc = 0.0
-        for acc, rot, rm, tof, lens, thm, hr, ht, hth, y in train_loader:
+        for acc, rot, rm, pm, tof, lens, thm, hr, ht, hth, y in train_loader:
             y = y.to(device)
             y_local = torch.tensor([global_to_local[int(c)] for c in y.cpu().tolist()], device=device)
             with torch.no_grad():
                 z = forward_fused_features(
-                    backbone, acc, rot, rm, tof, lens, thm, hr, ht, hth, device
+                    backbone, acc, rot, rm, pm, tof, lens, thm, hr, ht, hth, device
                 )
             opt.zero_grad()
             logits = spec(z)
@@ -327,11 +329,11 @@ def train_one_specialist(
         va = 0.0
         vn = 0
         with torch.no_grad():
-            for acc, rot, rm, tof, lens, thm, hr, ht, hth, y in val_loader:
+            for acc, rot, rm, pm, tof, lens, thm, hr, ht, hth, y in val_loader:
                 y = y.to(device)
                 y_local = torch.tensor([global_to_local[int(c)] for c in y.cpu().tolist()], device=device)
                 z = forward_fused_features(
-                    backbone, acc, rot, rm, tof, lens, thm, hr, ht, hth, device
+                    backbone, acc, rot, rm, pm, tof, lens, thm, hr, ht, hth, device
                 )
                 logits = spec(z)
                 va += (logits.argmax(1) == y_local).float().mean().item()
