@@ -3,25 +3,25 @@ Test Set Performance Analysis (Fusion Multistream CNN)
 
                                             precision    recall  f1-score   support
 
-                     Above ear - pull hair       0.42      0.36      0.39        96
-                        Cheek - pinch skin       0.25      0.08      0.12        96
-                     Drink from bottle/cup       0.75      0.62      0.68        24
-                       Eyebrow - pull hair       0.23      0.30      0.26        96
-                       Eyelash - pull hair       0.21      0.31      0.25        96
-Feel around in tray and pull out an object       0.58      0.62      0.60        24
-                  Forehead - pull hairline       0.37      0.20      0.26        96
-                        Forehead - scratch       0.38      0.48      0.43        96
+                     Above ear - pull hair       0.29      0.20      0.23        96
+                        Cheek - pinch skin       0.31      0.11      0.17        96
+                     Drink from bottle/cup       0.86      0.75      0.80        24
+                       Eyebrow - pull hair       0.22      0.28      0.25        96
+                       Eyelash - pull hair       0.17      0.42      0.24        96
+Feel around in tray and pull out an object       0.44      0.67      0.53        24
+                  Forehead - pull hairline       0.22      0.08      0.12        96
+                        Forehead - scratch       0.36      0.40      0.37        96
                             Glasses on/off       0.77      0.83      0.80        24
-                         Neck - pinch skin       0.23      0.39      0.29        96
-                            Neck - scratch       0.37      0.29      0.33        96
-                       Pinch knee/leg skin       0.44      0.46      0.45        24
-                 Pull air toward your face       0.88      0.74      0.81        70
-                     Scratch knee/leg skin       0.30      0.58      0.39        24
-                             Text on phone       0.83      0.89      0.86        96
-                                Wave hello       0.80      0.63      0.71        71
-                         Write name in air       0.62      0.59      0.60        70
-                         Write name on leg       0.20      0.04      0.07        24
+                         Neck - pinch skin       0.22      0.15      0.17        96
+                            Neck - scratch       0.22      0.28      0.25        96
+                       Pinch knee/leg skin       0.33      0.38      0.35        24
+                 Pull air toward your face       0.71      0.63      0.67        70
+                     Scratch knee/leg skin       0.25      0.25      0.25        24
+                             Text on phone       0.74      0.84      0.79        96
+                                Wave hello       0.72      0.55      0.62        71
+                         Write name in air       0.56      0.47      0.51        70
+                         Write name on leg       0.29      0.17      0.21        24
 
-                                  accuracy                           0.44      1219
-                                 macro avg       0.48      0.47      0.46      1219
-                              weighted avg       0.45      0.44      0.43      1219
+                                  accuracy                           0.37      1219
+                                 macro avg       0.43      0.41      0.41      1219
+                              weighted avg       0.39      0.37      0.37      1219

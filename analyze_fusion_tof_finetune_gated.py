@@ -2,7 +2,7 @@
 Evaluate Fusion_ToF_Multistream_CNN_finetune with specialist MLP gating (fusion_tof_specialists_gating.json).
 
 For each sequence: main finetune forward → if margin p1-p2 < tau_B and top-1 & top-2 classes ∈ block B,
-replace prediction with specialist_B(argmax on fused 256-d features). Blocks are disjoint.
+replace prediction with specialist_B(argmax on fused 192-d features). Blocks are disjoint.
 
 Runs the same reporting pipeline as analyze_fusion_tof_multistream_cnn.py (reports, CM, ROC, etc.):
 - Classification / confusion / region metrics use **gated** predictions.
@@ -68,22 +68,42 @@ def run_gated_evaluation(model, specialists: dict, blocks: list, loader, device)
     specialist_applied = []
     per_block_fires = {b["name"]: 0 for b in blocks}
 
-    for acc, rot, tof_padded, lengths, has_rot, has_tof, labels in loader:
+    for (
+        acc,
+        rot,
+        rot_mask,
+        pad_mask,
+        tof_padded,
+        lengths,
+        thm_padded,
+        has_rot,
+        has_tof,
+        has_thm,
+        labels,
+    ) in loader:
         acc = acc.to(device)
         rot = rot.to(device)
+        rot_mask = rot_mask.to(device)
+        pad_mask = pad_mask.to(device)
         tof_padded = tof_padded.to(device)
         lengths = lengths.to(device)
+        thm_padded = thm_padded.to(device)
         has_rot = has_rot.to(device)
         has_tof = has_tof.to(device)
+        has_thm = has_thm.to(device)
         labels = labels.to(device)
 
-        outputs = model(acc, rot, tof_padded, lengths, has_rot, has_tof)
+        outputs = model(
+            acc, rot, rot_mask, pad_mask, tof_padded, lengths, thm_padded, has_rot, has_tof, has_thm
+        )
         probs = F.softmax(outputs, dim=1)
         top2 = torch.topk(probs, k=2, dim=1)
         p1, p2 = top2.values[:, 0], top2.values[:, 1]
         c1, c2 = top2.indices[:, 0], top2.indices[:, 1]
         margin = p1 - p2
-        z = model.fused_features(acc, rot, tof_padded, lengths, has_rot, has_tof)
+        z = model.fused_features(
+            acc, rot, rot_mask, pad_mask, tof_padded, lengths, thm_padded, has_rot, has_tof, has_thm
+        )
 
         pred_main = outputs.argmax(dim=1)
         pred = pred_main.clone()

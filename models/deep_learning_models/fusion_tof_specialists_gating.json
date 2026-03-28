@@ -1,7 +1,9 @@
 {
-  "backbone_checkpoint": "models/deep_learning_models/Fusion_ToF_Multistream_CNN_finetune.pth",
+  "backbone_checkpoint": "models/deep_learning_models/Fusion_Thm_ToF_Multistream_CNN_finetune.pth",
   "fusion_pretrained": "models/deep_learning_models/Fusion_Multistream_CNN.pth",
   "tof_pretrained": "models/deep_learning_models/ToF_CNN.pth",
+  "thm_pretrained": "models/deep_learning_models/Multistream_CNN_thermal_only.pth",
+  "val_predictions_dir": "analysis_results/fusion_thm_tof_multistream_cnn_finetune_val",
   "feat_dim": 256,
   "class_names": [
     "Above ear - pull hair",
@@ -61,13 +63,13 @@
         10
       ],
       "top_k": 4,
-      "recall_true_in_topk_given_y_in_block_val": 0.9619565217391305,
-      "margin_threshold_tau": 0.6538246646523476,
+      "recall_true_in_topk_given_y_in_block_val": 0.9347826086956522,
+      "margin_threshold_tau": 0.4664412960410118,
       "margin_threshold_meta": {
         "n_val": 1170,
-        "n_within_block_errors": 58,
+        "n_within_block_errors": 48,
         "tau_source": "within_block_errors_p75",
-        "tau": 0.6538246646523476
+        "tau": 0.4664412960410118
       },
       "checkpoint": "models/deep_learning_models/fusion_tof_specialist_neck_scratch_pinch.pth"
     },
@@ -98,13 +100,13 @@
         7
       ],
       "top_k": 5,
-      "recall_true_in_topk_given_y_in_block_val": 0.9358974358974359,
-      "margin_threshold_tau": 0.7041226625442505,
+      "recall_true_in_topk_given_y_in_block_val": 0.9377289377289377,
+      "margin_threshold_tau": 0.6635940931737423,
       "margin_threshold_meta": {
         "n_val": 1170,
-        "n_within_block_errors": 190,
+        "n_within_block_errors": 171,
         "tau_source": "within_block_errors_p75",
-        "tau": 0.7041226625442505
+        "tau": 0.6635940931737423
       },
       "checkpoint": "models/deep_learning_models/fusion_tof_specialist_upper_face_bfrb.pth"
     },
@@ -126,13 +128,13 @@
         17
       ],
       "top_k": 3,
-      "recall_true_in_topk_given_y_in_block_val": 0.9444444444444444,
-      "margin_threshold_tau": 0.44287657365202904,
+      "recall_true_in_topk_given_y_in_block_val": 0.9722222222222222,
+      "margin_threshold_tau": 0.3143654316663742,
       "margin_threshold_meta": {
         "n_val": 1170,
-        "n_within_block_errors": 34,
+        "n_within_block_errors": 45,
         "tau_source": "within_block_errors_p75",
-        "tau": 0.44287657365202904
+        "tau": 0.3143654316663742
       },
       "checkpoint": "models/deep_learning_models/fusion_tof_specialist_leg_skin_write_leg.pth"
     },
@@ -154,13 +156,13 @@
         16
       ],
       "top_k": 3,
-      "recall_true_in_topk_given_y_in_block_val": 0.9313725490196079,
-      "margin_threshold_tau": 0.9775142008438706,
+      "recall_true_in_topk_given_y_in_block_val": 0.9656862745098039,
+      "margin_threshold_tau": 0.9114483874291182,
       "margin_threshold_meta": {
         "n_val": 1170,
-        "n_within_block_errors": 47,
+        "n_within_block_errors": 56,
         "tau_source": "within_block_errors_p75",
-        "tau": 0.9775142008438706
+        "tau": 0.9114483874291182
       },
       "checkpoint": "models/deep_learning_models/fusion_tof_specialist_air_arm_motion.pth"
     }

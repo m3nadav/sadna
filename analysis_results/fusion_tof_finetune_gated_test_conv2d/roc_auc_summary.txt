@@ -1,22 +1,22 @@
-Macro-average AUC: 0.9479
+Macro-average AUC: 0.9552
 
 Per-class AUC (lowest first):
                                      Class      AUC
-                       Eyebrow - pull hair 0.846254
-                       Eyelash - pull hair 0.877245
-                        Cheek - pinch skin 0.898041
-                            Neck - scratch 0.922232
-                        Forehead - scratch 0.922381
-                  Forehead - pull hairline 0.925395
-                         Neck - pinch skin 0.925822
-                     Above ear - pull hair 0.936387
-                         Write name in air 0.955663
-                     Scratch knee/leg skin 0.972280
-                         Write name on leg 0.974861
-                                Wave hello 0.976751
-                 Pull air toward your face 0.977981
-                             Text on phone 0.980373
-                       Pinch knee/leg skin 0.985251
-                     Drink from bottle/cup 0.990481
-                            Glasses on/off 0.993619
-Feel around in tray and pull out an object 0.995746
+                       Eyebrow - pull hair 0.877959
+                       Eyelash - pull hair 0.886187
+                        Cheek - pinch skin 0.901352
+                            Neck - scratch 0.911324
+                  Forehead - pull hairline 0.927612
+                         Neck - pinch skin 0.932769
+                        Forehead - scratch 0.938873
+                     Above ear - pull hair 0.961524
+                         Write name in air 0.972112
+                                Wave hello 0.976824
+                     Scratch knee/leg skin 0.980195
+                         Write name on leg 0.980300
+                       Pinch knee/leg skin 0.980788
+                 Pull air toward your face 0.984347
+                            Glasses on/off 0.988250
+                     Drink from bottle/cup 0.989086
+                             Text on phone 0.997700
+Feel around in tray and pull out an object 0.999721

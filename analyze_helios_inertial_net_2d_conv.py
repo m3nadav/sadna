@@ -33,6 +33,7 @@ from train_helios_inertial import (
     HeliosInertialNet,
     HeliosDataset,
     helios_collate_fn,
+    compute_acc_zscore_stats,
 )
 
 CHECKPOINT_PATH = "models/deep_learning_models/helios_inertial_net_2d_conv.pth"
@@ -62,12 +63,21 @@ def load_model_and_data(checkpoint_path=CHECKPOINT_PATH):
     ckpt = torch.load(checkpoint_path, map_location=device, weights_only=False)
 
     if isinstance(ckpt, dict) and "model_state_dict" in ckpt:
+        sd = ckpt["model_state_dict"]
         n_cls = ckpt.get("num_classes", num_classes)
-        model = HeliosInertialNet(num_classes=n_cls)
-        model.load_state_dict(ckpt["model_state_dict"])
     else:
-        model = HeliosInertialNet(num_classes=num_classes)
-        model.load_state_dict(ckpt)
+        sd = ckpt
+        n_cls = num_classes
+    if isinstance(ckpt, dict) and "input_zscore_mean" in ckpt and "input_zscore_std" in ckpt:
+        m = np.asarray(ckpt["input_zscore_mean"], dtype=np.float32)
+        s = np.asarray(ckpt["input_zscore_std"], dtype=np.float32)
+    elif "input_norm.mean" in sd:
+        m = sd["input_norm.mean"].detach().cpu().numpy()
+        s = sd["input_norm.std"].detach().cpu().numpy()
+    else:
+        m, s = compute_acc_zscore_stats(trainset_df)
+    model = HeliosInertialNet(num_classes=n_cls, norm_mean=m, norm_std=s)
+    model.load_state_dict(sd, strict="input_norm.mean" in sd)
     model = model.to(device)
     model.eval()
 

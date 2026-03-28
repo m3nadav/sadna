@@ -1,2 +1,2 @@
-Mean confidence — Correct: 0.771 | Wrong: 0.582
-Fraction of wrong predictions with confidence > 0.9: 4.4%  (high = model is confidently wrong)
+Mean confidence — Correct: 0.804 | Wrong: 0.627
+Fraction of wrong predictions with confidence > 0.9: 7.6%  (high = model is confidently wrong)

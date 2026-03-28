@@ -1,18 +1,18 @@
 Fusion ToF Finetune + specialist gating — Test set
 
-Backbone: models/deep_learning_models/Fusion_ToF_Multistream_CNN_finetune.pth
+Backbone: models/deep_learning_models/Fusion_Thm_ToF_Multistream_CNN_finetune.pth
 Gating: models/deep_learning_models/fusion_tof_specialists_gating.json
 
 Let p1>=p2 be the two largest main-model softmax probabilities and c1,c2 the corresponding class indices. If (p1-p2) < tau_B AND {c1,c2} ⊆ B.class_indices, run specialist MLP on frozen fused_features (256-d) and replace prediction with local_to_global[argmax(specialist_logits)]. Otherwise keep main argmax. Field top_k is the smallest k in [2,5] on validation such that P(true ∈ top-k | y in block) >= recall_target; use it to audit coverage or for extended gating (e.g. require true ∈ top-k before override).
 
-Accuracy (main finetune argmax): 0.5677
-Accuracy (gated): 0.5792
-Sequences with specialist override: 510 / 1219 (41.84%)
+Accuracy (main finetune argmax): 0.5964
+Accuracy (gated): 0.5890
+Sequences with specialist override: 545 / 1219 (44.71%)
 
 Per-block gate fires (each sequence counted at most once; blocks are class-disjoint):
-  air_arm_motion: 74
-  leg_skin_write_leg: 49
-  neck_scratch_pinch: 80
-  upper_face_bfrb: 307
+  air_arm_motion: 91
+  leg_skin_write_leg: 54
+  neck_scratch_pinch: 91
+  upper_face_bfrb: 309
 
 Note: confidence_analysis and ROC use MAIN model logits only; classification_report and confusion_matrix use GATED predictions.
