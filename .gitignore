@@ -5,3 +5,4 @@ data/
 deep_learning_models.ipynb
 my_env/
 tests/
+.ipynb_checkpoints/
